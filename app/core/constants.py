@@ -1,0 +1,22 @@
+SUPPORTED_AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".wav",
+    ".m4a"
+}
+
+SUPPORTED_VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".webm"
+}
+
+ALLOWED_EXTENSIONS = (
+    SUPPORTED_AUDIO_EXTENSIONS
+    | SUPPORTED_VIDEO_EXTENSIONS
+)
+
+MAX_CHUNK_MINUTES = 10
+
+DEFAULT_PROGRESS = 0

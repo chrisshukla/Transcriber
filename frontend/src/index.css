@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-fg);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-fg);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-fg);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-fg);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-fg);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-fg);
+  
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --card: #ffffff;
+  --card-fg: #0f172a;
+  --border: #e2e8f0;
+  --primary: #4f46e5; /* Indigo 600 */
+  --primary-fg: #ffffff;
+  --secondary: #475569; /* Slate 600 */
+  --secondary-fg: #ffffff;
+  --muted: #f1f5f9; /* Slate 100 */
+  --muted-fg: #64748b; /* Slate 500 */
+  --accent: #7c3aed; /* Violet 600 */
+  --accent-fg: #ffffff;
+  --success: #059669; /* Emerald 600 */
+  --success-fg: #ffffff;
+  --destructive: #dc2626; /* Red 600 */
+  --destructive-fg: #ffffff;
+}
+
+.dark {
+  --bg: #0b0f19; /* Custom dark deep space blue */
+  --fg: #f1f5f9;
+  --card: #151c2c; /* Lighter container card */
+  --card-fg: #f1f5f9;
+  --border: #27354f;
+  --primary: #6366f1; /* Indigo 500 */
+  --primary-fg: #ffffff;
+  --secondary: #94a3b8;
+  --secondary-fg: #0f172a;
+  --muted: #1e293b;
+  --muted-fg: #94a3b8;
+  --accent: #8b5cf6;
+  --accent-fg: #ffffff;
+  --success: #10b981;
+  --success-fg: #ffffff;
+  --destructive: #ef4444;
+  --destructive-fg: #ffffff;
+}
+
+/* Global resets & scrollbar stylings for desktop productivity look */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+  overflow-y: overlay;
+}
+
+/* Custom Scrollbar for desktop productivity style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .glass {
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Pulse animation for active processing status */
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+.pulse-status {
+  animation: status-pulse 2s infinite ease-in-out;
+}
+
+/* App Body Layout Grid to prevent overlapping on different screen sizes */
+@utility app-body-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  @media (min-width: 768px) {
+    grid-template-columns: 256px 1fr;
+  }
+}
+

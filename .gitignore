@@ -1,0 +1,35 @@
+# Python environment & cache files
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+
+# Databases
+database/
+*.db
+*.sqlite3
+
+# Local application folders for media and processing
+uploads/
+audio/
+chunks/
+
+# Node modules and frontend builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/frontend/node_modules/
+frontend/frontend/dist/
+.eslintcache
+.stylelintcache
+
+# IDE config folders
+.idea/
+.vscode/
+*.suo
+*.swp
+*.local
