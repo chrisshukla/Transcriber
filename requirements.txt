@@ -1,4 +1,8 @@
+fastapi
+uvicorn
+pydub
+faster-whisper
 reportlab
-pip uninstall openai-whisper
-pip install faster-whisper
-pip install ctranslate2
+python-multipart
+audioop-lts
+ctranslate2
