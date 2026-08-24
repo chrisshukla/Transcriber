@@ -1,0 +1,11 @@
+[project]
+name = "transcriptor"
+
+[pyrefly]
+enabled = false
+typeCheckingMode = "off"
+
+[diagnostics]
+reportMissingImports = "none"
+reportMissingTypeStubs = "none"
+reportGeneralTypeIssues = "none"

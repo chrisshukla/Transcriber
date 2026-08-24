@@ -1,6 +1,6 @@
 import time
 
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel  # type: ignore
 
 from app.utils.logger import logger
 
@@ -44,6 +44,7 @@ class WhisperService:
                 model_size,
                 device=device,
                 compute_type=compute_type,
+                cpu_threads=8,
             )
 
             logger.info("Whisper model loaded successfully.")
@@ -60,9 +61,14 @@ class WhisperService:
             audio_path,
             beam_size=5,
             vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500),
             word_timestamps=True,
-            condition_on_previous_text=True,
-            temperature=0.0,
+            condition_on_previous_text=False,
+            temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            compression_ratio_threshold=2.4,
+            no_speech_threshold=0.6,
+            repetition_penalty=1.2,
+            initial_prompt="This is a Hinglish conversation with mixed Hindi and English speech.",
         )
 
         transcript = []

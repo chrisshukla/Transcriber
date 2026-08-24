@@ -2,6 +2,8 @@ from enum import Enum
 
 
 class JobStatus(str, Enum):
+    QUEUED = "QUEUED"
+
     UPLOADED = "UPLOADED"
 
     EXTRACTING_AUDIO = "EXTRACTING_AUDIO"

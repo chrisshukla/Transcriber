@@ -10,6 +10,15 @@ interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = '' }) => {
   const getStatusConfig = (status: JobStatus) => {
     switch (status) {
+      case 'QUEUED':
+        return {
+          label: 'Queued in Line',
+          bgColor: 'bg-purple-500/10 dark:bg-purple-500/20',
+          textColor: 'text-purple-600 dark:text-purple-400',
+          borderColor: 'border-purple-500/20 dark:border-purple-500/30',
+          dotColor: 'bg-purple-500',
+          pulse: true,
+        };
       case 'COMPLETED':
         return {
           label: 'Completed',

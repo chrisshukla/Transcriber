@@ -33,3 +33,11 @@ frontend/frontend/dist/
 *.suo
 *.swp
 *.local
+
+# macOS files
+.DS_Store
+
+# Output & Transcripts
+output/
+transcripts/
+

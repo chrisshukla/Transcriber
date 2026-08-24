@@ -1,8 +1,9 @@
 import json
+import re
 from pathlib import Path
 import shutil
 from app.core.config import (
-    AUDIO_DIR,OUTPUT_DIR,TRANSCRIPT_DIR,CHUNK_DIR
+    AUDIO_DIR, OUTPUT_DIR, TRANSCRIPT_DIR, CHUNK_DIR
 )
 from app.core.constants import MAX_CHUNK_MINUTES
 from app.services.audio_service import AudioService
@@ -10,11 +11,48 @@ from app.services.whisper_service import WhisperService
 from app.services.pdf_service import PDFService
 from app.services.text_service import TextService
 from app.services.chunk_service import ChunkService
+from app.services.llm_service import LLMService
 
 from app.queue.job_store import job_manager
 from app.models.job_status import JobStatus
-
 from app.utils.logger import logger
+
+try:
+    from indic_transliteration import sanscript  # type: ignore # pyrefly: ignore [missing-import]
+    from indic_transliteration.sanscript import transliterate  # type: ignore # pyrefly: ignore [missing-import]
+    INDIC_AVAILABLE = True
+except ImportError:
+    INDIC_AVAILABLE = False
+
+
+def _to_hinglish(text: str) -> str:
+    if not INDIC_AVAILABLE or not text:
+        return text
+    if any("\u0900" <= char <= "\u097F" for char in text):
+        try:
+            words = text.split(" ")
+            res_words = []
+            for w in words:
+                if any("\u0900" <= char <= "\u097F" for char in w):
+                    clean_w = w.strip(".,?!:;\"()")
+                    t = transliterate(clean_w, sanscript.DEVANAGARI, sanscript.ITRANS)
+                    t = t.replace(".N", "n").replace(".m", "m").replace("A", "a").replace("I", "i").replace("U", "u")
+                    t = t.replace("M", "m").replace("R", "r").replace("S", "sh").replace("T", "t")
+                    t = t.replace("D", "d").replace("N", "n").replace("^", "").replace("shh", "sh").replace(".d", "d")
+                    if t.endswith("a") and len(t) > 2 and not t.endswith(("aa", "ia", "ua", "ea", "oa", "ra", "ka", "ga", "ya", "ha", "ba", "ma", "pa", "la", "na", "sa", "va", "ta", "da")):
+                        t = t[:-1]
+                    w_trans = w.replace(clean_w, t)
+                    res_words.append(w_trans)
+                else:
+                    res_words.append(w)
+            raw_hinglish = " ".join(res_words)
+            from app.services.llm_service import _sanitize_hinglish_text
+            return _sanitize_hinglish_text(raw_hinglish)
+        except Exception:
+            return text
+    from app.services.llm_service import _sanitize_hinglish_text
+    return _sanitize_hinglish_text(text)
+
 
 class TranscriptionService:
 
@@ -24,6 +62,7 @@ class TranscriptionService:
         self.pdf = PDFService()
         self.text = TextService()
         self.chunk = ChunkService()
+        self.llm = LLMService()
         self.jobs = job_manager
 
     def process(self, video_path: str, job_id: str):
@@ -138,7 +177,37 @@ class TranscriptionService:
 
             all_segments.sort(key=lambda s: s["start"])
 
+            # Deduplicate hallucinated consecutive repeating segments (Whisper repetition loop safeguard)
+            deduped_segments: list[dict] = []
+            repeat_count: int = 0
+            last_text: str | None = None
+
+            for seg in all_segments:
+                current_text: str = str(seg.get("text", "")).strip().lower()
+                if current_text and current_text == last_text:
+                    repeat_count += 1
+                    if repeat_count >= 2:
+                        continue
+                else:
+                    last_text = current_text
+                    repeat_count = 0
+                deduped_segments.append(seg)
+
+            all_segments = deduped_segments
+
+            for seg in all_segments:
+                seg["hinglish_text"] = _to_hinglish(seg.get("text", ""))
+
+            # Clean English spellings and typos in Hinglish text using Ollama local LLM
+            all_segments = self.llm.clean_segments(all_segments)
+
+            clean_name = Path(filename).name
+            clean_stem = re.sub(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_', '', clean_name, flags=re.IGNORECASE)
+            clean_stem = Path(clean_stem).stem
+            clean_stem = re.sub(r'[^\w\s-]', '_', clean_stem).strip() or "transcript"
+
             result = {
+                "filename": clean_name,
                 "language": language,
                 "language_probability": language_probability,
                 "processing_time": round(processing_time, 2),
@@ -193,7 +262,7 @@ class TranscriptionService:
                 JobStatus.GENERATING_PDF
             )
 
-            pdf_path = OUTPUT_DIR / f"{job_id}.pdf"
+            pdf_path = OUTPUT_DIR / f"{clean_stem}.pdf"
 
             self.pdf.generate(
                 result,
@@ -203,7 +272,7 @@ class TranscriptionService:
             # ------------------------------------
             # Generate TXT
             # ------------------------------------
-            txt_path = OUTPUT_DIR/ f"{job_id}.txt"
+            txt_path = OUTPUT_DIR / f"{clean_stem}.txt"
 
             self.text.generate(
                 result,

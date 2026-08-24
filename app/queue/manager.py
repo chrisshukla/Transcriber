@@ -1,14 +1,56 @@
+import asyncio
+from datetime import datetime
 from typing import List, Optional
 
 from app.models.job import Job
 from app.models.job_status import JobStatus
 from app.repositories.job_repository import JobRepository
+from app.utils.logger import logger
 
 
 class JobManager:
 
     def __init__(self):
         self.repository = JobRepository()
+        self._queue = asyncio.Queue()
+        self._worker_task = None
+
+    async def recover_queued_jobs(self):
+        from pathlib import Path
+        rows = self.repository.get_all_jobs()
+        for row in rows:
+            if row["status"] == JobStatus.QUEUED.value:
+                job_id = row["id"]
+                filename = row["filename"]
+                video_path = str(Path("uploads") / filename)
+                if Path(video_path).exists():
+                    logger.info(f"Auto-recovering queued job {job_id} into worker queue...")
+                    await self._queue.put((video_path, job_id))
+
+    async def start_worker(self):
+        if self._worker_task is None or self._worker_task.done():
+            await self.recover_queued_jobs()
+            self._worker_task = asyncio.create_task(self._worker_loop())
+
+    async def _worker_loop(self):
+        from app.services.transcription_service import TranscriptionService
+        service = TranscriptionService()
+
+        logger.info("Sequential Job Queue Worker started.")
+        while True:
+            video_path, job_id = await self._queue.get()
+            try:
+                logger.info(f"Worker picking up queued job {job_id}...")
+                await asyncio.to_thread(service.process, video_path, job_id)
+            except Exception as e:
+                logger.error(f"Worker encountered error for job {job_id}: {e}")
+            finally:
+                self._queue.task_done()
+
+    async def enqueue_job(self, video_path: str, job_id: str):
+        self.update_status(job_id, JobStatus.QUEUED)
+        await self._queue.put((video_path, job_id))
+        await self.start_worker()
 
     def _row_to_job(self, row) -> Job:
 
@@ -22,6 +64,18 @@ class JobManager:
         job.duration = row["duration"]
         job.language = row["language"]
         job.error = row["error"]
+
+        if row["created_at"]:
+            try:
+                job.created_at = datetime.fromisoformat(row["created_at"])
+            except Exception:
+                pass
+
+        if row["completed_at"]:
+            try:
+                job.completed_at = datetime.fromisoformat(row["completed_at"])
+            except Exception:
+                pass
 
         job.pdf_file = row["pdf_path"]
         job.output_file = row["txt_path"]

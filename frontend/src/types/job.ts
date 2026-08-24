@@ -1,4 +1,5 @@
 export type JobStatus =
+  | 'QUEUED'
   | 'UPLOADED'
   | 'EXTRACTING_AUDIO'
   | 'DETECTING_SPEECH'

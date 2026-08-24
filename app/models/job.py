@@ -16,9 +16,11 @@ class Job:
 
     progress: int = 0
 
-    created_at: datetime = field(default_factory=lambda:datetime.now(UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    updated_at: datetime = field(default_factory=lambda:datetime.now(UTC))
+    completed_at: datetime | None = None
+
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     output_file: str | None = None
 
@@ -31,3 +33,15 @@ class Job:
     language: str | None = None
 
     error: str | None = None
+
+    @property
+    def pdf_path(self) -> str | None:
+        return self.pdf_file
+
+    @property
+    def txt_path(self) -> str | None:
+        return self.output_file
+
+    @property
+    def json_path(self) -> str | None:
+        return self.transcript_file

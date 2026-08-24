@@ -55,6 +55,21 @@ export const Jobs: React.FC = () => {
 
   useEffect(() => {
     fetchJobs();
+
+    // Auto-poll every 3 seconds for live job updates
+    const interval = setInterval(async () => {
+      try {
+        const data = await jobsApi.getJobs();
+        const sortedJobs = data.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setJobs(sortedJobs);
+      } catch (error) {
+        // Silent error handling for background polls
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Filter Jobs when search term, status filter or jobs list updates

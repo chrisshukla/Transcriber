@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydub import AudioSegment
+from pydub import AudioSegment  # type: ignore # pyrefly: ignore [missing-import]
 
 from app.utils.logger import logger
 
