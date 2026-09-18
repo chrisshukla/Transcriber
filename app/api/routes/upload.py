@@ -31,10 +31,28 @@ async def upload_file(file: UploadFile = File(...)):
             detail="Unsupported file type."
         )
 
-    destination = UPLOAD_DIR /f"{uuid4()}_{file.filename}"
+    destination = UPLOAD_DIR / f"{uuid4()}_{file.filename}"
 
-    with destination.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        with destination.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        if destination.exists():
+            try:
+                destination.unlink()
+            except Exception:
+                pass
+
+        if isinstance(e, OSError) and (getattr(e, 'errno', None) == 28 or "No space left on device" in str(e)):
+            raise HTTPException(
+                status_code=507,
+                detail="Server storage is full. Cannot save uploaded file."
+            )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save uploaded file: {str(e)}"
+        )
 
     return {
         "message": "File uploaded successfully.",

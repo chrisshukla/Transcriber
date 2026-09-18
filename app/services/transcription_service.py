@@ -17,41 +17,8 @@ from app.queue.job_store import job_manager
 from app.models.job_status import JobStatus
 from app.utils.logger import logger
 
-try:
-    from indic_transliteration import sanscript  # type: ignore # pyrefly: ignore [missing-import]
-    from indic_transliteration.sanscript import transliterate  # type: ignore # pyrefly: ignore [missing-import]
-    INDIC_AVAILABLE = True
-except ImportError:
-    INDIC_AVAILABLE = False
+from app.utils.hinglish import _to_hinglish
 
-
-def _to_hinglish(text: str) -> str:
-    if not INDIC_AVAILABLE or not text:
-        return text
-    if any("\u0900" <= char <= "\u097F" for char in text):
-        try:
-            words = text.split(" ")
-            res_words = []
-            for w in words:
-                if any("\u0900" <= char <= "\u097F" for char in w):
-                    clean_w = w.strip(".,?!:;\"()")
-                    t = transliterate(clean_w, sanscript.DEVANAGARI, sanscript.ITRANS)
-                    t = t.replace(".N", "n").replace(".m", "m").replace("A", "a").replace("I", "i").replace("U", "u")
-                    t = t.replace("M", "m").replace("R", "r").replace("S", "sh").replace("T", "t")
-                    t = t.replace("D", "d").replace("N", "n").replace("^", "").replace("shh", "sh").replace(".d", "d")
-                    if t.endswith("a") and len(t) > 2 and not t.endswith(("aa", "ia", "ua", "ea", "oa", "ra", "ka", "ga", "ya", "ha", "ba", "ma", "pa", "la", "na", "sa", "va", "ta", "da")):
-                        t = t[:-1]
-                    w_trans = w.replace(clean_w, t)
-                    res_words.append(w_trans)
-                else:
-                    res_words.append(w)
-            raw_hinglish = " ".join(res_words)
-            from app.services.llm_service import _sanitize_hinglish_text
-            return _sanitize_hinglish_text(raw_hinglish)
-        except Exception:
-            return text
-    from app.services.llm_service import _sanitize_hinglish_text
-    return _sanitize_hinglish_text(text)
 
 
 class TranscriptionService:
@@ -129,51 +96,52 @@ class TranscriptionService:
             duration = 0
             processing_time = 0
 
+            import os
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
             total_chunks = len(chunks)
+            max_chunk_workers = 2 if (os.cpu_count() or 4) >= 8 else 1
+            completed_count = 0
 
-            for index, chunk in enumerate(chunks):
+            def _process_chunk(item):
+                idx, ch = item
+                logger.info(f"Processing chunk {idx + 1}/{total_chunks}")
+                res = self.whisper.transcribe(ch["path"])
+                return idx, ch, res
 
-                logger.info(
-                    f"Processing chunk {index + 1}/{total_chunks}"
-                )
+            logger.info(f"Transcribing {total_chunks} chunks using {max_chunk_workers} parallel CPU workers...")
 
-                chunk_result = self.whisper.transcribe(
-                    chunk["path"]
-                )
-                if language is None:
-                    language = chunk_result["language"]
+            with ThreadPoolExecutor(max_workers=max_chunk_workers) as executor:
+                futures = [executor.submit(_process_chunk, item) for item in enumerate(chunks)]
+                for future in as_completed(futures):
+                    idx, chunk, chunk_result = future.result()
 
-                if language_probability is None:
-                    language_probability = chunk_result.get(
-                        "language_probability"
+                    if language is None:
+                        language = chunk_result["language"]
+
+                    if language_probability is None:
+                        language_probability = chunk_result.get("language_probability")
+
+                    processing_time += chunk_result.get("processing_time", 0)
+
+                    duration = max(
+                        duration,
+                        chunk["offset"] + chunk_result["duration"]
                     )
 
-                processing_time += chunk_result.get(
-                    "processing_time",
-                    0
-                )
+                    for segment in chunk_result["segments"]:
+                        segment["start"] += chunk["offset"]
+                        segment["end"] += chunk["offset"]
+                        all_segments.append(segment)
 
-                duration = max(
-                    duration,
-                    chunk["offset"] + chunk_result["duration"]
-                )
+                    completed_count += 1
+                    progress = 30 + int((completed_count / total_chunks) * 50)
 
-                for segment in chunk_result["segments"]:
-
-                    segment["start"] += chunk["offset"]
-                    segment["end"] += chunk["offset"]
-
-                    all_segments.append(segment)
-
-                progress = 30 + int(
-                    ((index + 1) / total_chunks) * 50
-                )
-
-                self.jobs.update_progress(
-                    job_id,
-                    progress,
-                    JobStatus.TRANSCRIBING
-                )
+                    self.jobs.update_progress(
+                        job_id,
+                        progress,
+                        JobStatus.TRANSCRIBING
+                    )
 
             all_segments.sort(key=lambda s: s["start"])
 

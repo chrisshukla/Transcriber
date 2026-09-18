@@ -36,15 +36,18 @@ class WhisperService:
                 else:
                     compute_type = "int8"
 
+            import os
+            num_threads = os.cpu_count() or 8
+
             logger.info(
-                f"Device: {device} | Compute Type: {compute_type}"
+                f"Device: {device} | Compute Type: {compute_type} | CPU Threads: {num_threads}"
             )
 
             WhisperService._model = WhisperModel(
                 model_size,
                 device=device,
                 compute_type=compute_type,
-                cpu_threads=8,
+                cpu_threads=num_threads,
             )
 
             logger.info("Whisper model loaded successfully.")
@@ -59,12 +62,12 @@ class WhisperService:
 
         segments, info = self.model.transcribe(
             audio_path,
-            beam_size=5,
+            beam_size=2,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
-            word_timestamps=True,
+            word_timestamps=False,
             condition_on_previous_text=False,
-            temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            temperature=0.0,
             compression_ratio_threshold=2.4,
             no_speech_threshold=0.6,
             repetition_penalty=1.2,

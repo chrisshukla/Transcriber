@@ -10,72 +10,7 @@ except ImportError:
     OLLAMA_CLIENT_INSTALLED = False
 
 
-def _sanitize_hinglish_text(text: str) -> str:
-    if not text:
-        return text
-    text = text.replace(".dega", "dega").replace(".degi", "degi").replace(".d", "d").replace(".N", "n").replace(".m", "m")
-    replacements = [
-        (r"\bstej\b", "stage"),
-        (r"\bstejas\b", "stages"),
-        (r"\bstejpe\b", "stage pe"),
-        (r"\bcherman\b", "chairman"),
-        (r"\bcheyaramaina\b", "chairman"),
-        (r"\bshmart\b", "smart"),
-        (r"\bphacilitaor\b", "facilitator"),
-        (r"\bkaonphidemsa\b", "confidence"),
-        (r"\bkaॉnphidemsa\b", "confidence"),
-        (r"\bmaltiplayara\b", "multiplier"),
-        (r"\bmaltiplayar\b", "multiplier"),
-        (r"\bdevalapamemta\b", "development"),
-        (r"\bmotiveshana\b", "motivation"),
-        (r"\bsaksesa\b", "success"),
-        (r"\bgraॉpimga\b", "grouping"),
-        (r"\barali\b", "early"),
-        (r"\bekselaresana\b", "acceleration"),
-        (r"\brioriemtesana\b", "reorientation"),
-        (r"\bkoraporataijesana\b", "corporatization"),
-        (r"\blibaresana\b", "liberation"),
-        (r"\bekosistama\b", "ecosystem"),
-        (r"\bbijnasa\b", "business"),
-        (r"\bdhandewala\b", "dhandhewala"),
-        (r"\bentreprenyura\b", "entrepreneur"),
-        (r"\bamtreprenyura\b", "entrepreneur"),
-        (r"\bsevhisa\b", "service"),
-        (r"\bsavhisa\b", "service"),
-        (r"\bprograॉma\b", "program"),
-        (r"\bprograama\b", "program"),
-        (r"\btaiyara\b", "taiyar"),
-        (r"\bbahatarina\b", "behtareen"),
-        (r"\bguru kula\b", "gurukul"),
-        (r"\bgurukula\b", "gurukul"),
-        (r"\bpa\.dega\b", "padega"),
-        (r"\bpa\.degi\b", "padegi"),
-        (r"\bupara\b", "upar"),
-        (r"\balaga-alaga\b", "alag-alag"),
-        (r"\balaga\b", "alag"),
-        (r"\bkaremge\b", "karenge"),
-        (r"\bjaemge\b", "jaenge"),
-        (r"\bdemge\b", "denge"),
-        (r"\bapako\b", "aapko"),
-        (r"\bapane\b", "apne"),
-        (r"\bapani\b", "apni"),
-        (r"\bchij\b", "cheez"),
-        (r"\bchijom\b", "cheezon"),
-        (r"\bmatalaba\b", "matlab"),
-        (r"\bisa\b", "is"),
-        (r"\busa\b", "us"),
-        (r"\bjisaka\b", "jiska"),
-        (r"\bloga\b", "log"),
-        (r"\bbahuta\b", "bahut"),
-        (r"\bsatom\b", "saaton"),
-        (r"\bmujharemge\b", "guzrenge"),
-        (r"\bdhyana\b", "dhyan"),
-        (r"\badatom\b", "aadat"),
-        (r"\bsherom\b", "shehron"),
-    ]
-    for pat, repl in replacements:
-        text = re.sub(pat, repl, text, flags=re.IGNORECASE)
-    return text
+from app.utils.hinglish import _sanitize_hinglish_text, _to_hinglish
 
 
 class LLMService:
@@ -103,7 +38,6 @@ class LLMService:
     def _clean_single_batch(self, batch: list, batch_idx: int, total_batches: int) -> list:
         for s in batch:
             if not s.get("hinglish_text"):
-                from app.services.transcription_service import _to_hinglish
                 s["hinglish_text"] = _to_hinglish(s.get("text", ""))
 
         batch_texts = [s.get("hinglish_text", "") for s in batch]

@@ -38,6 +38,6 @@ frontend/frontend/dist/
 .DS_Store
 
 # Output & Transcripts
-output/
+
 transcripts/
 
