@@ -34,7 +34,7 @@ class TranscriptionService:
 
     def process(self, video_path: str, job_id: str):
 
-        video_path = Path(video_path)
+        video_file_path = Path(video_path)
 
         job = self.jobs.get_job(job_id)
 
@@ -42,6 +42,7 @@ class TranscriptionService:
             raise ValueError(f"Job {job_id} not found.")
 
         filename = job.filename
+        audio_path: Path | None = None
 
         try:
 
@@ -56,10 +57,10 @@ class TranscriptionService:
                 JobStatus.EXTRACTING_AUDIO
             )
 
-            audio_path = AUDIO_DIR / f"{video_path.stem}.wav"
+            audio_path = AUDIO_DIR / f"{video_file_path.stem}.wav"
 
             self.audio.extract_audio(
-                str(video_path),
+                str(video_file_path),
                 str(audio_path)
             )
 
@@ -100,7 +101,7 @@ class TranscriptionService:
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             total_chunks = len(chunks)
-            max_chunk_workers = 2 if (os.cpu_count() or 4) >= 8 else 1
+            max_chunk_workers = 1
             completed_count = 0
 
             def _process_chunk(item):
@@ -189,7 +190,7 @@ class TranscriptionService:
             # ------------------------------------
             self.jobs.set_language(
                 job_id,
-                language
+                language or "en"
             )
 
             self.jobs.set_duration(
@@ -280,10 +281,7 @@ class TranscriptionService:
 
             try:
 
-                if (
-                    "audio_path" in locals()
-                    and audio_path.exists()
-                ):
+                if audio_path is not None and audio_path.exists():
                     audio_path.unlink()
 
                 chunk_dir = CHUNK_DIR / job_id

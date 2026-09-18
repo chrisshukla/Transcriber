@@ -29,7 +29,7 @@ class JobManager:
                 video_path = str(Path("uploads") / filename)
                 if Path(video_path).exists():
                     logger.info(f"Auto-recovering interrupted/queued job {job_id} (previous status: {st}) into worker queue...")
-                    self.update_status(job_id, JobStatus.QUEUED)
+                    self.update_progress(job_id, 0, JobStatus.QUEUED)
                     self._queued_ids.add(job_id)
                     await self._queue.put((video_path, job_id))
 
