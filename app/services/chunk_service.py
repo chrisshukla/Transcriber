@@ -13,7 +13,7 @@ class ChunkService:
         chunk_minutes: int = 10,
     ):
 
-        audio = AudioSegment.from_file(audio_path)
+        audio: AudioSegment = AudioSegment.from_file(audio_path)
 
         output_folder = Path("chunks")/job_id
         output_folder.mkdir(parents=True, exist_ok=True)
@@ -33,7 +33,7 @@ class ChunkService:
             start = i * chunk_length
             end = min(start + chunk_length, len(audio))
 
-            chunk = audio[start:end]
+            chunk: AudioSegment = audio[start:end]
 
             filename = f"chunk_{i+1:04d}.wav"
 
