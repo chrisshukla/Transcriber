@@ -14,11 +14,10 @@ router = APIRouter(
     "/",
     response_model=list[JobResponse]
 )
-async def list_jobs():
+def list_jobs():
     """
     Return all jobs.
     """
-    await job_manager.start_worker()
     return job_manager.list_jobs()
 
 
@@ -26,11 +25,10 @@ async def list_jobs():
     "/{job_id}",
     response_model=JobResponse
 )
-async def get_job(job_id: str):
+def get_job(job_id: str):
     """
     Return one job.
     """
-    await job_manager.start_worker()
     job = job_manager.get_job(job_id)
 
     if job is None:

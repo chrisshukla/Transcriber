@@ -43,12 +43,21 @@ class WhisperService:
                 f"Device: {device} | Compute Type: {compute_type} | CPU Threads: {num_threads}"
             )
 
-            WhisperService._model = WhisperModel(
-                model_size,
-                device=device,
-                compute_type=compute_type,
-                cpu_threads=num_threads,
-            )
+            try:
+                WhisperService._model = WhisperModel(
+                    model_size,
+                    device=device,
+                    compute_type=compute_type,
+                    cpu_threads=num_threads,
+                    local_files_only=True,
+                )
+            except Exception:
+                WhisperService._model = WhisperModel(
+                    model_size,
+                    device=device,
+                    compute_type=compute_type,
+                    cpu_threads=num_threads,
+                )
 
             logger.info("Whisper model loaded successfully.")
 

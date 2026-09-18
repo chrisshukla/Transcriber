@@ -14,21 +14,28 @@ class JobManager:
         self.repository = JobRepository()
         self._queue = asyncio.Queue()
         self._queued_ids = set()
+        self._active_job_id = None
         self._worker_task = None
+        self._recovered = False
 
     async def recover_queued_jobs(self):
+        if self._recovered:
+            return
+        self._recovered = True
+
         from pathlib import Path
         rows = self.repository.get_all_jobs()
-        for row in rows:
+        # Recover in FIFO order (oldest created_at first)
+        for row in reversed(rows):
             st = row["status"]
             if st not in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
                 job_id = row["id"]
-                if job_id in self._queued_ids:
+                if job_id in self._queued_ids or job_id == self._active_job_id:
                     continue
                 filename = row["filename"]
                 video_path = str(Path("uploads") / filename)
                 if Path(video_path).exists():
-                    logger.info(f"Auto-recovering interrupted/queued job {job_id} (previous status: {st}) into worker queue...")
+                    logger.info(f"Auto-recovering unfinished job {job_id} (status: {st}) into worker queue...")
                     self.update_progress(job_id, 0, JobStatus.QUEUED)
                     self._queued_ids.add(job_id)
                     await self._queue.put((video_path, job_id))
@@ -39,39 +46,51 @@ class JobManager:
             self._worker_task = asyncio.create_task(self._worker_loop())
 
     async def _worker_loop(self):
-        try:
-            from app.services.transcription_service import TranscriptionService
-            from pathlib import Path
-            service = TranscriptionService()
-            logger.info("Sequential Job Queue Worker started.")
-        except Exception as init_err:
-            logger.error(f"Failed to initialize Worker/TranscriptionService: {init_err}")
-            return
+        service = None
+        logger.info("Sequential Job Queue Worker loop started.")
 
         while True:
-            video_path, job_id = await self._queue.get()
             try:
-                job_row = self.repository.get_job(job_id)
-                if not job_row:
-                    logger.info(f"Skipping job {job_id} because it was deleted from database.")
-                    continue
+                if service is None:
+                    from app.services.transcription_service import TranscriptionService
+                    service = TranscriptionService()
+                    logger.info("TranscriptionService successfully initialized in worker.")
 
-                if not Path(video_path).exists():
-                    logger.warning(f"Video file missing for job {job_id}: {video_path}")
-                    self.fail_job(job_id, f"Uploaded file {video_path} no longer exists.")
-                    continue
-
-                logger.info(f"Worker picking up queued job {job_id}...")
-                await asyncio.to_thread(service.process, video_path, job_id)
-            except Exception as e:
-                logger.error(f"Worker encountered error for job {job_id}: {e}")
-            finally:
+                video_path, job_id = await self._queue.get()
                 self._queued_ids.discard(job_id)
-                self._queue.task_done()
+                self._active_job_id = job_id
+
+                try:
+                    from pathlib import Path
+                    job_row = self.repository.get_job(job_id)
+                    if not job_row:
+                        logger.info(f"Skipping job {job_id} because it was deleted from database.")
+                        continue
+
+                    if not Path(video_path).exists():
+                        logger.warning(f"Video file missing for job {job_id}: {video_path}")
+                        self.fail_job(job_id, f"Uploaded file {video_path} no longer exists.")
+                        continue
+
+                    logger.info(f"Worker picking up queued job {job_id}...")
+                    await asyncio.to_thread(service.process, video_path, job_id)
+                except Exception as e:
+                    logger.error(f"Worker encountered error for job {job_id}: {e}")
+                    self.fail_job(job_id, str(e))
+                finally:
+                    self._active_job_id = None
+                    self._queue.task_done()
+
+            except asyncio.CancelledError:
+                logger.info("Worker loop cancelled.")
+                break
+            except Exception as loop_err:
+                logger.error(f"Worker loop initialization error: {loop_err}. Retrying in 3 seconds...")
+                await asyncio.sleep(3)
 
     async def enqueue_job(self, video_path: str, job_id: str):
         self.update_status(job_id, JobStatus.QUEUED)
-        if job_id not in self._queued_ids:
+        if job_id not in self._queued_ids and job_id != self._active_job_id:
             self._queued_ids.add(job_id)
             await self._queue.put((video_path, job_id))
         await self.start_worker()
