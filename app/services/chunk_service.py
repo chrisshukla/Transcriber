@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from pydub import AudioSegment  # type: ignore # pyrefly: ignore [missing-import]
 
 from app.utils.logger import logger
@@ -13,7 +14,7 @@ class ChunkService:
         chunk_minutes: int = 10,
     ):
 
-        audio: AudioSegment = AudioSegment.from_file(audio_path)
+        audio: Any = AudioSegment.from_file(audio_path)
 
         output_folder = Path("chunks")/job_id
         output_folder.mkdir(parents=True, exist_ok=True)
@@ -33,7 +34,7 @@ class ChunkService:
             start = i * chunk_length
             end = min(start + chunk_length, len(audio))
 
-            chunk: AudioSegment = audio[start:end]
+            chunk: Any = audio[start:end]
 
             filename = f"chunk_{i+1:04d}.wav"
 

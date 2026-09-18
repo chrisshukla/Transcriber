@@ -43,5 +43,9 @@ class Job:
         return self.output_file
 
     @property
+    def text_file(self) -> str | None:
+        return self.output_file
+
+    @property
     def json_path(self) -> str | None:
         return self.transcript_file

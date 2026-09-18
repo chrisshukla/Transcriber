@@ -1,6 +1,13 @@
 {
-  "typeCheckingMode": "off",
-  "reportMissingImports": "none",
-  "reportMissingTypeStubs": "none",
-  "reportGeneralTypeIssues": "none"
+  "include": [
+    "app"
+  ],
+  "extraPaths": [
+    "."
+  ],
+  "venvPath": ".",
+  "venv": "venv",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false
 }

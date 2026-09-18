@@ -23,6 +23,12 @@ ALLOWED_EXTENSIONS = {
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
 
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Filename is missing."
+        )
+
     extension = Path(file.filename).suffix.lower()
 
     if extension not in ALLOWED_EXTENSIONS:
