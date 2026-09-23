@@ -102,7 +102,8 @@ class LLMService:
             cleaned_batch.append(cleaned_item)
         return cleaned_batch
 
-    def clean_segments(self, segments: list, batch_size: int = 35, max_workers: int = 4) -> list:
+    def clean_segments(self, segments: list, batch_size: int = 35, max_workers: int = 2) -> list:
+
         """
         Batch clean Hinglish transcript segments in parallel using Ollama local LLM.
         Fixes English misspellings without translating Hinglish sentences.
@@ -125,9 +126,9 @@ class LLMService:
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
                 try:
-                    cleaned_results[idx] = future.result()
+                    cleaned_results[idx] = future.result(timeout=15.0)
                 except Exception as exc:
-                    logger.warning(f"Batch {idx} generated exception: {exc}")
+                    logger.warning(f"Batch {idx} generated exception or timed out: {exc}")
                     cleaned_results[idx] = batches[idx]
 
         final_segments = []

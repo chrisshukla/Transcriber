@@ -1,4 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+
 
 @theme {
   --color-background: var(--bg);
@@ -20,6 +22,7 @@
   --color-destructive-foreground: var(--destructive-fg);
   
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', 'Inter', system-ui, sans-serif;
 }
 
 :root {
@@ -34,7 +37,7 @@
   --secondary-fg: #ffffff;
   --muted: #f1f5f9; /* Slate 100 */
   --muted-fg: #64748b; /* Slate 500 */
-  --accent: #7c3aed; /* Violet 600 */
+  --accent: #06b6d4; /* Cyan 500 */
   --accent-fg: #ffffff;
   --success: #059669; /* Emerald 600 */
   --success-fg: #ffffff;
@@ -43,26 +46,26 @@
 }
 
 .dark {
-  --bg: #0b0f19; /* Custom dark deep space blue */
-  --fg: #f1f5f9;
-  --card: #151c2c; /* Lighter container card */
-  --card-fg: #f1f5f9;
-  --border: #27354f;
-  --primary: #6366f1; /* Indigo 500 */
+  --bg: #090d16; /* Deep space dark canvas */
+  --fg: #f8fafc;
+  --card: #111827; /* Rich dark container */
+  --card-fg: #f8fafc;
+  --border: #1f293d;
+  --primary: #6366f1; /* Bright Indigo */
   --primary-fg: #ffffff;
   --secondary: #94a3b8;
   --secondary-fg: #0f172a;
   --muted: #1e293b;
   --muted-fg: #94a3b8;
-  --accent: #8b5cf6;
-  --accent-fg: #ffffff;
+  --accent: #22d3ee; /* Glowing Cyan */
+  --accent-fg: #0f172a;
   --success: #10b981;
   --success-fg: #ffffff;
-  --destructive: #ef4444;
+  --destructive: #f43f5e;
   --destructive-fg: #ffffff;
 }
 
-/* Global resets & scrollbar stylings for desktop productivity look */
+/* Global resets & typography */
 * {
   margin: 0;
   padding: 0;
@@ -74,10 +77,14 @@ body {
   color: var(--fg);
   font-family: var(--font-sans);
   transition: background-color 0.25s ease, border-color 0.25s ease;
-  overflow-y: overlay;
+  overflow-y: auto;
 }
 
-/* Custom Scrollbar for desktop productivity style */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -88,36 +95,69 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.25);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.45);
 }
 
-/* Glassmorphism utility */
+/* Rich Glassmorphism utilities */
 .glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .dark .glass {
-  background: rgba(15, 23, 42, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-/* Pulse animation for active processing status */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-card {
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+}
+
+/* Glowing text and borders */
+.glow-primary {
+  box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.4);
+}
+
+.glow-accent {
+  box-shadow: 0 0 25px -5px rgba(34, 211, 238, 0.4);
+}
+
+.gradient-heading {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
 @keyframes status-pulse {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
   50% {
-    opacity: 0.6;
-    transform: scale(1.05);
+    opacity: 0.5;
+    transform: scale(1.08);
   }
 }
 
@@ -125,7 +165,20 @@ body {
   animation: status-pulse 2s infinite ease-in-out;
 }
 
-/* App Body Layout Grid to prevent overlapping on different screen sizes */
+@keyframes dropzone-pulse {
+  0%, 100% {
+    border-color: rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    border-color: rgba(99, 102, 241, 0.8);
+  }
+}
+
+.animate-dropzone {
+  animation: dropzone-pulse 3s infinite ease-in-out;
+}
+
+/* Layout Utilities */
 @utility app-body-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -133,4 +186,23 @@ body {
     grid-template-columns: 256px 1fr;
   }
 }
+
+/* Legacy Space Utilities Polyfill for Tailwind CSS v4 */
+.space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
+.space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
+.space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.25rem; }
+.space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+.space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 2rem; }
+.space-y-10 > :not([hidden]) ~ :not([hidden]) { margin-top: 2.5rem; }
+.space-y-12 > :not([hidden]) ~ :not([hidden]) { margin-top: 3rem; }
+
+.space-x-1 > :not([hidden]) ~ :not([hidden]) { margin-left: 0.25rem; }
+.space-x-2 > :not([hidden]) ~ :not([hidden]) { margin-left: 0.5rem; }
+.space-x-3 > :not([hidden]) ~ :not([hidden]) { margin-left: 0.75rem; }
+.space-x-4 > :not([hidden]) ~ :not([hidden]) { margin-left: 1rem; }
+.space-x-6 > :not([hidden]) ~ :not([hidden]) { margin-left: 1.5rem; }
+
+
 

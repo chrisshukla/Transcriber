@@ -65,10 +65,18 @@ export const jobsApi = {
   },
 
   /**
+   * Retry or re-enqueue an interrupted or failed job.
+   */
+  retryJob: async (id: string): Promise<MessageResponse> => {
+    const response = await api.post<MessageResponse>(`/jobs/${id}/retry`);
+    return response.data;
+  },
+
+  /**
    * Generate download URLs for direct links.
    */
   getDownloadUrl: (type: 'pdf' | 'txt' | 'json', id: string): string => {
-    return `http://localhost:8000/download/${type}/${id}`;
+    return `http://127.0.0.1:8000/download/${type}/${id}`;
   },
 
   /**

@@ -44,8 +44,8 @@ export const AppLayout: React.FC = () => {
         <Sidebar />
 
         {/* Dynamic Nested Content Area with breathing space */}
-        <main className="min-w-0 overflow-y-auto px-8 py-10 md:px-12 md:py-12 w-full">
-          <div className="w-full max-w-6xl mx-auto space-y-10 animate-in fade-in duration-250">
+        <main className="min-w-0 overflow-y-auto px-6 py-8 md:px-10 md:py-10 w-full">
+          <div className="w-full max-w-6xl mx-auto flex flex-col gap-10 animate-in fade-in duration-250">
             <Outlet />
           </div>
         </main>

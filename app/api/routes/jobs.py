@@ -14,10 +14,11 @@ router = APIRouter(
     "/",
     response_model=list[JobResponse]
 )
-def list_jobs():
+async def list_jobs():
     """
     Return all jobs.
     """
+    await job_manager.start_worker()
     return job_manager.list_jobs()
 
 
@@ -25,10 +26,11 @@ def list_jobs():
     "/{job_id}",
     response_model=JobResponse
 )
-def get_job(job_id: str):
+async def get_job(job_id: str):
     """
     Return one job.
     """
+    await job_manager.start_worker()
     job = job_manager.get_job(job_id)
 
     if job is None:
@@ -38,6 +40,34 @@ def get_job(job_id: str):
         )
 
     return job
+
+
+@router.post(
+    "/{job_id}/retry",
+    response_model=MessageResponse
+)
+async def retry_job(job_id: str):
+    """
+    Retry or resume an interrupted/failed job.
+    """
+    if not job_manager.exists(job_id):
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found."
+        )
+
+    success = await job_manager.retry_job(job_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to retry job. Original uploaded file may be missing."
+        )
+
+    return MessageResponse(
+        success=True,
+        message="Job retry queued successfully."
+    )
 
 
 @router.delete(

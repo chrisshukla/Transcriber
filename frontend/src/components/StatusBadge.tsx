@@ -107,14 +107,15 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${config.bgColor} ${config.textColor} ${config.borderColor} ${className}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold border uppercase tracking-wider backdrop-blur-md shadow-sm ${config.bgColor} ${config.textColor} ${config.borderColor} ${className}`}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full ${config.dotColor} ${
-          config.pulse ? 'animate-pulse' : ''
+          config.pulse ? 'animate-ping' : ''
         }`}
       />
       {config.label}
     </span>
   );
 };
+

@@ -22,11 +22,11 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 border-r border-border bg-card/40 flex-shrink-0 hidden md:flex flex-col justify-between py-6 px-4 select-none">
+    <aside className="w-64 border-r border-border/60 glass flex-shrink-0 hidden md:flex flex-col justify-between py-6 px-4 select-none">
       <div className="flex flex-col gap-6">
         {/* Navigation Section */}
-        <div className="flex flex-col gap-1">
-          <span className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+        <div className="flex flex-col gap-1.5">
+          <span className="px-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
             Main Menu
           </span>
           {navItems.map((item) => {
@@ -36,14 +36,14 @@ export const Sidebar: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  `flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                     isActive
-                      ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`
                 }
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
+                <Icon className="w-4.5 h-4.5 flex-shrink-0" />
                 <span>{item.label}</span>
               </NavLink>
             );
@@ -53,15 +53,17 @@ export const Sidebar: React.FC = () => {
 
       {/* Footer Info inside Sidebar */}
       <div className="px-3">
-        <div className="p-3 bg-muted/30 border border-border/50 rounded-xl">
-          <p className="text-[11px] text-muted-foreground leading-normal">
-            Status: <span className="font-semibold text-emerald-500">Online</span>
+        <div className="p-3.5 bg-card/60 border border-border/60 rounded-2xl shadow-sm">
+          <p className="text-[11px] font-extrabold text-muted-foreground leading-normal flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+            Engine: <span className="text-emerald-400">Sequential</span>
           </p>
-          <p className="text-[10px] text-muted-foreground/60 leading-normal mt-0.5">
-            API v1.0.0
+          <p className="text-[10px] font-bold text-muted-foreground/70 leading-normal mt-1 uppercase tracking-wider">
+            Whisper Large-v3 (1.55B)
           </p>
         </div>
       </div>
     </aside>
   );
 };
+

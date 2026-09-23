@@ -1,24 +1,35 @@
 import time
+import threading
+from typing import Optional
 
 from faster_whisper import WhisperModel  # type: ignore
 
+from app.core.config import (
+    WHISPER_MODEL_SIZE,
+    WHISPER_DEVICE,
+    WHISPER_COMPUTE_TYPE,
+    WHISPER_CPU_THREADS,
+)
 from app.utils.logger import logger
 
 
 class WhisperService:
 
-    _model = None
+    _model: Optional[WhisperModel] = None
+    _batched_pipeline = None
+    _transcribe_lock = threading.Lock()
 
     def __init__(
         self,
-        model_size: str = "large-v3",
-        device: str = "auto",
-        compute_type: str = "auto",
+        model_size: str = WHISPER_MODEL_SIZE,
+        device: str = WHISPER_DEVICE,
+        compute_type: str = WHISPER_COMPUTE_TYPE,
+        cpu_threads: int = WHISPER_CPU_THREADS,
     ):
 
         if WhisperService._model is None:
 
-            logger.info("Loading Faster-Whisper model...")
+            logger.info(f"Loading Faster-Whisper model ('{model_size}')...")
 
             if device == "auto":
                 try:
@@ -36,8 +47,7 @@ class WhisperService:
                 else:
                     compute_type = "int8"
 
-            import os
-            num_threads = os.cpu_count() or 8
+            num_threads = cpu_threads
 
             logger.info(
                 f"Device: {device} | Compute Type: {compute_type} | CPU Threads: {num_threads}"
@@ -59,9 +69,17 @@ class WhisperService:
                     cpu_threads=num_threads,
                 )
 
-            logger.info("Whisper model loaded successfully.")
+            try:
+                from faster_whisper import BatchedInferencePipeline
+                WhisperService._batched_pipeline = BatchedInferencePipeline(model=WhisperService._model)
+                logger.info("Faster-Whisper BatchedInferencePipeline enabled for maximum speed.")
+            except Exception as batch_err:
+                logger.warning(f"BatchedInferencePipeline not initialized, falling back to standard pipeline: {batch_err}")
+
+            logger.info(f"Whisper model ('{model_size}') loaded successfully.")
 
         self.model = WhisperService._model
+        self.batched_pipeline = WhisperService._batched_pipeline
 
     def transcribe(self, audio_path: str):
 
@@ -69,40 +87,43 @@ class WhisperService:
 
         start_time = time.time()
 
-        segments, info = self.model.transcribe(
-            audio_path,
-            beam_size=2,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-            word_timestamps=False,
-            condition_on_previous_text=False,
-            temperature=0.0,
-            compression_ratio_threshold=2.4,
-            no_speech_threshold=0.6,
-            repetition_penalty=1.2,
-            initial_prompt="This is a Hinglish conversation with mixed Hindi and English speech.",
-        )
+        with WhisperService._transcribe_lock:
+            try:
+                segments, info = self.model.transcribe(
+                    audio_path,
+                    beam_size=1,
+                    vad_filter=True,
+                    vad_parameters=dict(min_silence_duration_ms=500),
+                    word_timestamps=False,
+                    condition_on_previous_text=False,
+                    temperature=0.0,
+                    repetition_penalty=1.1,
+                    initial_prompt="This is a Hinglish conversation with mixed Hindi and English speech.",
+                )
+            except Exception as err:
+                logger.error(f"Whisper transcribe failed for {audio_path}: {err}")
+                raise
 
-        transcript = []
+            transcript = []
 
-        total_segments = 0
+            total_segments = 0
 
-        for segment in segments:
+            for segment in segments:
 
-            transcript.append(
-                {
-                    "start": round(segment.start, 2),
-                    "end": round(segment.end, 2),
-                    "text": segment.text.strip(),
-                }
-            )
+                transcript.append(
+                    {
+                        "start": round(segment.start, 2),
+                        "end": round(segment.end, 2),
+                        "text": segment.text.strip(),
+                    }
+                )
 
-            total_segments += 1
+                total_segments += 1
 
         elapsed = round(time.time() - start_time, 2)
 
         logger.info(
-            f"Finished in {elapsed} seconds."
+            f"Finished transcription of {audio_path} in {elapsed} seconds."
         )
 
         return {
@@ -113,3 +134,4 @@ class WhisperService:
             "segments": transcript,
             "segment_count": total_segments,
         }
+

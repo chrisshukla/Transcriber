@@ -10,6 +10,7 @@ import {
   Globe,
   FileText,
   FileDown,
+  RotateCcw,
 } from 'lucide-react';
 import { jobsApi } from '../api/jobs';
 import type { Job } from '../types/job';
@@ -18,6 +19,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { SkeletonTable } from '../components/LoadingSpinner';
 import { useToast } from '../components/Toast';
+import { getCleanFilename } from '../utils/formatters';
 
 
 export const Jobs: React.FC = () => {
@@ -36,13 +38,19 @@ export const Jobs: React.FC = () => {
 
   const toast = useToast();
 
+  const parseDate = (d: string | null | undefined) => {
+    if (!d) return 0;
+    const time = new Date(d).getTime();
+    return isNaN(time) ? 0 : time;
+  };
+
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
       const data = await jobsApi.getJobs();
-      // Sort: newest first
-      const sortedJobs = data.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      const jobList = Array.isArray(data) ? data : [];
+      const sortedJobs = jobList.sort(
+        (a, b) => parseDate(b.created_at) - parseDate(a.created_at)
       );
       setJobs(sortedJobs);
     } catch (error) {
@@ -56,12 +64,12 @@ export const Jobs: React.FC = () => {
   useEffect(() => {
     fetchJobs();
 
-    // Auto-poll every 3 seconds for live job updates
     const interval = setInterval(async () => {
       try {
         const data = await jobsApi.getJobs();
-        const sortedJobs = data.sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        const jobList = Array.isArray(data) ? data : [];
+        const sortedJobs = jobList.sort(
+          (a, b) => parseDate(b.created_at) - parseDate(a.created_at)
         );
         setJobs(sortedJobs);
       } catch (error) {
@@ -117,13 +125,23 @@ export const Jobs: React.FC = () => {
     }
   };
 
+  const handleRetryJob = async (jobToRetry: Job) => {
+    try {
+      toast.info(`Queuing retry for "${jobToRetry.filename}"...`);
+      await jobsApi.retryJob(jobToRetry.id);
+      toast.success('Job retry queued successfully!');
+      fetchJobs();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to retry job. Original source file may be missing.');
+    }
+  };
+
   const handleDownload = async (type: 'pdf' | 'txt' | 'json', job: Job) => {
     try {
-      // Determine file extension
-      const ext = type;
-      // Get base original filename without its suffix to append download format
-      const baseName = job.filename.substring(0, job.filename.lastIndexOf('.')) || job.filename;
-      const downloadName = `${baseName}_transcript.${ext}`;
+      const cleanName = getCleanFilename(job.filename);
+      const baseName = cleanName.substring(0, cleanName.lastIndexOf('.')) || cleanName;
+      const downloadName = `${baseName}_transcript.${type}`;
       
       toast.info(`Starting download for ${downloadName}...`);
       await jobsApi.downloadFile(type, job.id, downloadName);
@@ -152,31 +170,31 @@ export const Jobs: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-foreground">Transcription Jobs</h2>
-          <p className="text-sm text-muted-foreground">Manage and download your AI transcriptions</p>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Transcription Runs</h2>
+          <p className="text-xs font-semibold text-muted-foreground mt-0.5">Manage and download all your AI model transcriptions</p>
         </div>
         <Link
           to="/upload"
-          className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/95 hover:scale-[1.01] active:scale-[0.99] rounded-xl shadow-lg shadow-primary/20 transition-all cursor-pointer text-center"
+          className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-[1.02] active:scale-[0.98] rounded-2xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer text-center glow-primary"
         >
           New Upload
         </Link>
       </div>
 
       {/* Filters Card */}
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="glass-card rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
         {/* Search */}
         <div className="relative w-full md:flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search by filename..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
+            className="w-full pl-11 pr-4 py-2.5 border border-border/80 bg-background/50 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors font-medium"
           />
         </div>
 
@@ -185,7 +203,7 @@ export const Jobs: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full md:w-48 px-3 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            className="w-full md:w-48 px-3.5 py-2.5 border border-border/80 bg-background/50 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer font-bold text-foreground"
           >
             <option value="all">All Statuses</option>
             <option value="COMPLETED">Completed</option>
@@ -199,24 +217,24 @@ export const Jobs: React.FC = () => {
       {isLoading ? (
         <SkeletonTable rows={5} />
       ) : filteredJobs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-card border border-border rounded-3xl text-center">
+        <div className="flex flex-col items-center justify-center p-12 glass-card rounded-3xl text-center">
           <FileText className="w-12 h-12 text-muted-foreground/40 mb-3" />
-          <p className="text-sm font-bold text-foreground">No matching transcription jobs found.</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Try widening your search terms or filters.</p>
+          <p className="text-base font-extrabold text-foreground">No matching transcription jobs found.</p>
+          <p className="text-xs text-muted-foreground mt-1 font-medium">Try widening your search terms or filters.</p>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        <div className="glass-card rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-sm select-none">
               <thead>
-                <tr className="border-b border-border bg-muted/20 text-muted-foreground font-semibold">
-                  <th className="p-4">Filename</th>
+                <tr className="border-b border-border/60 bg-muted/30 font-bold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="p-4 pl-6">Filename</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Progress</th>
                   <th className="p-4">Language</th>
                   <th className="p-4">Duration</th>
                   <th className="p-4">Created Time</th>
-                  <th className="p-4 text-center">Actions</th>
+                  <th className="p-4 text-center pr-6">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -230,8 +248,8 @@ export const Jobs: React.FC = () => {
                       className="hover:bg-muted/20 transition-colors"
                     >
                       {/* Filename */}
-                      <td className="p-4 font-semibold text-foreground max-w-[200px] truncate" title={job.filename}>
-                        {job.filename}
+                      <td className="p-4 pl-6 font-bold text-foreground max-w-[220px] truncate" title={getCleanFilename(job.filename)}>
+                        {getCleanFilename(job.filename)}
                       </td>
 
                       {/* Status badge */}
@@ -240,15 +258,16 @@ export const Jobs: React.FC = () => {
                       </td>
 
                       {/* Progress bar */}
-                      <td className="p-4 min-w-[145px]">
+                      <td className="p-4 min-w-[155px]">
                         {isProcessing ? (
                           <ProgressBar progress={job.progress} />
                         ) : (
-                          <span className="text-xs text-muted-foreground font-medium">
+                          <span className="text-xs text-muted-foreground font-semibold">
                             {job.status === 'COMPLETED' ? '100% completed' : 'Failed'}
                           </span>
                         )}
                       </td>
+
 
                       {/* Language */}
                       <td className="p-4 text-muted-foreground font-medium">
@@ -293,6 +312,18 @@ export const Jobs: React.FC = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </Link>
+
+                          {/* Retry button for failed jobs */}
+                          {job.status === 'FAILED' && (
+                            <button
+                              onClick={() => handleRetryJob(job)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 font-bold rounded-xl text-xs transition-all cursor-pointer border border-indigo-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                              title="Retry Job"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Retry</span>
+                            </button>
+                          )}
 
                           {/* Direct download selector */}
                           {isFinished ? (

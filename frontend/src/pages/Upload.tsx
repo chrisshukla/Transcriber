@@ -115,7 +115,7 @@ export const Upload: React.FC = () => {
       setIsStartingTranscription(true);
       const transcribeRes = await jobsApi.startTranscription(filenameInUploads);
 
-      toast.success('Transcription job started!');
+      toast.success('Transcription job queued!');
       
       // Redirect directly to the JobDetails page for real-time monitoring
       navigate(`/jobs/${transcribeRes.job_id}`);
@@ -130,13 +130,13 @@ export const Upload: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-xl mx-auto animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 max-w-xl mx-auto animate-in fade-in duration-300">
       <div>
-        <h2 className="text-xl font-extrabold tracking-tight text-foreground">Upload Audio or Video</h2>
-        <p className="text-sm text-muted-foreground">Select a file to run AI Speech Recognition</p>
+        <h2 className="text-2xl font-black tracking-tight text-foreground">Upload Media File</h2>
+        <p className="text-xs font-semibold text-muted-foreground mt-0.5">Select an audio or video file to process with Whisper AI</p>
       </div>
 
-      <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-6">
+      <div className="glass-card rounded-3xl p-8 shadow-xl flex flex-col gap-6">
         {/* Drag and Drop Zone */}
         {!file && (
           <div
@@ -145,10 +145,10 @@ export const Upload: React.FC = () => {
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={triggerFileSelect}
-            className={`flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+            className={`flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-3xl cursor-pointer transition-all duration-300 ${
               dragActive
-                ? 'border-primary bg-primary/5 scale-[1.01]'
-                : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                ? 'border-indigo-500 bg-indigo-500/10 scale-[1.02] shadow-xl glow-primary'
+                : 'border-border/80 hover:border-indigo-500/60 hover:bg-muted/20 animate-dropzone'
             }`}
           >
             <input
@@ -159,30 +159,30 @@ export const Upload: React.FC = () => {
               onChange={handleFileChange}
               disabled={isUploading}
             />
-            <div className="p-3 bg-primary/10 text-primary rounded-xl mb-4">
-              <UploadCloud className="w-8 h-8" />
+            <div className="p-4 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400 rounded-2xl mb-4 border border-indigo-500/20 glow-primary">
+              <UploadCloud className="w-10 h-10 animate-bounce" />
             </div>
-            <p className="text-sm font-bold text-foreground text-center">
+            <p className="text-base font-extrabold text-foreground text-center">
               Drag & Drop file here or click to browse
             </p>
-            <p className="text-xs text-muted-foreground text-center mt-1">
-              Supports MP4, AVI, MOV, MKV, WEBM, MP3, WAV, M4A
+            <p className="text-xs text-muted-foreground text-center mt-1.5 font-medium">
+              Supported Formats: MP4, AVI, MOV, MKV, WEBM, MP3, WAV, M4A
             </p>
           </div>
         )}
 
         {/* Selected File Details */}
         {file && (
-          <div className="relative p-5 border border-border rounded-2xl bg-muted/20 flex items-center gap-4">
-            <div className={`p-3 rounded-xl border ${
+          <div className="relative p-6 border border-border/80 rounded-2xl bg-card/60 flex items-center gap-4 shadow-sm">
+            <div className={`p-4 rounded-2xl border ${
               isVideoFile(file.name)
-                ? 'bg-blue-500/10 border-blue-500/20 text-blue-500'
-                : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-500'
+                ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
             }`}>
-              {isVideoFile(file.name) ? <FileVideo className="w-7 h-7" /> : <FileAudio className="w-7 h-7" />}
+              {isVideoFile(file.name) ? <FileVideo className="w-8 h-8" /> : <FileAudio className="w-8 h-8" />}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-foreground truncate pr-6">
+              <p className="text-sm font-bold text-foreground truncate pr-6" title={file.name}>
                 {file.name}
               </p>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -192,7 +192,7 @@ export const Upload: React.FC = () => {
             {!isUploading && (
               <button
                 onClick={removeFile}
-                className="absolute right-3 top-3 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="absolute right-3 top-3 p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer"
                 title="Remove file"
               >
                 <X className="w-4 h-4" />
@@ -203,9 +203,9 @@ export const Upload: React.FC = () => {
 
         {/* Upload Action Progress */}
         {isUploading && (
-          <div className="space-y-2 p-1">
-            <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground">
-              <span>{isStartingTranscription ? 'Initializing Transcription...' : 'Uploading File...'}</span>
+          <div className="space-y-2.5 p-2">
+            <div className="flex justify-between items-center text-xs font-extrabold text-muted-foreground">
+              <span>{isStartingTranscription ? 'Enqueuing Job...' : 'Uploading File...'}</span>
               <span className="font-mono">{uploadProgress}%</span>
             </div>
             <ProgressBar progress={uploadProgress} />
@@ -216,20 +216,21 @@ export const Upload: React.FC = () => {
         {file && !isUploading && (
           <button
             onClick={handleUpload}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary/95 text-white font-bold rounded-2xl shadow-lg shadow-primary/25 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2.5 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:scale-[1.02] active:scale-[0.98] text-white font-black rounded-2xl shadow-xl shadow-indigo-500/25 transition-all cursor-pointer glow-primary text-sm uppercase tracking-wider"
           >
-            <Play className="w-4 h-4" />
-            Transcribe File
+            <Play className="w-4 h-4 fill-white" />
+            Start Transcription Job
           </button>
         )}
 
         {isStartingTranscription && (
-          <div className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            AI Model Loading... Please wait
+          <div className="flex items-center justify-center gap-2.5 py-3 text-sm font-bold text-muted-foreground">
+            <Loader2 className="w-4.5 h-4.5 animate-spin text-indigo-500" />
+            Connecting to sequential worker queue...
           </div>
         )}
       </div>
     </div>
   );
 };
+
