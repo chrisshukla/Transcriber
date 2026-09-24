@@ -18,6 +18,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 FONT_DIR = PROJECT_ROOT / "fonts"
 
 
+def _format_timestamp(seconds: float | int) -> str:
+    total_secs = int(seconds)
+    hours = total_secs // 3600
+    minutes = (total_secs % 3600) // 60
+    secs = total_secs % 60
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
 class PDFService:
 
     def __init__(self):
@@ -140,7 +150,7 @@ class PDFService:
         gen_time = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         raw_duration = transcript.get("duration")
         duration_sec = round(float(raw_duration), 2) if raw_duration is not None else 0.0
-        duration_min = f"{int(duration_sec // 60)}m {int(duration_sec % 60)}s"
+        formatted_duration = _format_timestamp(duration_sec)
 
         file_name = transcript.get("filename") or ""
         meta_parts = []
@@ -149,7 +159,7 @@ class PDFService:
         meta_parts.append(f"<b>Generated:</b> {gen_time}")
         if lang:
             meta_parts.append(f"<b>Language:</b> {html.escape(str(lang).upper())}")
-        meta_parts.append(f"<b>Duration:</b> {duration_min} ({duration_sec}s)")
+        meta_parts.append(f"<b>Duration:</b> {formatted_duration} ({duration_sec}s)")
 
         metadata_text = " &nbsp;&nbsp;|&nbsp;&nbsp; ".join(meta_parts)
         story.append(Paragraph(metadata_text, normal_style))  # type: ignore
@@ -165,19 +175,11 @@ class PDFService:
             s_val = segment.get("start") or 0
             e_val = segment.get("end") or 0
 
-            if isinstance(s_val, (int, float)):
-                start_fmt = f"{int(s_val // 60):02d}:{int(s_val % 60):02d}"
-            else:
-                start_fmt = str(s_val)
+            start_fmt = _format_timestamp(s_val) if isinstance(s_val, (int, float)) else str(s_val)
+            end_fmt = _format_timestamp(e_val) if isinstance(e_val, (int, float)) else str(e_val)
 
-            if isinstance(e_val, (int, float)):
-                end_fmt = f"{int(e_val // 60):02d}:{int(e_val % 60):02d}"
-            else:
-                end_fmt = str(e_val)
-
-            text_val = segment.get("text")
-            hinglish_val = segment.get("hinglish_text")
-            display_text = text_val if text_val is not None else (hinglish_val if hinglish_val is not None else "")
+            # Prioritize cleaned Hinglish text over raw Whisper text
+            display_text = segment.get("hinglish_text") or segment.get("text", "")
             display_text = str(display_text)
 
             line_content = f"<b>[{start_fmt} - {end_fmt}]</b> {html.escape(display_text)}"
@@ -191,6 +193,7 @@ class PDFService:
             story.append(Spacer(1, 6))  # type: ignore
 
         pdf.build(story)  # type: ignore
+
 
         logger.info(f"PDF Generated Successfully at {output}")
         return str(output)
