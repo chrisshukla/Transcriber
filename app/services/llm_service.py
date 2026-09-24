@@ -17,12 +17,20 @@ class LLMService:
 
     def __init__(self, model_name: str = "llama3.2"):
         self.model_name = model_name
+        self._client = None
+        if OLLAMA_CLIENT_INSTALLED:
+            try:
+                # Set a strict 15-second network timeout per request on Ollama client
+                self._client = ollama.Client(timeout=15.0)
+            except Exception as e:
+                logger.warning(f"Could not initialize ollama.Client with timeout: {e}")
 
     def is_available(self) -> bool:
         if not OLLAMA_CLIENT_INSTALLED:
             return False
         try:
-            res = ollama.list()
+            client = self._client or ollama
+            res = client.list()
             models_list = getattr(res, "models", []) if hasattr(res, "models") else res.get("models", [])
             available_models = []
             for m in models_list:
@@ -35,16 +43,25 @@ class LLMService:
             logger.warning(f"Ollama not reachable: {e}")
             return False
 
-    def _clean_single_batch(self, batch: list, batch_idx: int, total_batches: int) -> list:
+    def _clean_single_batch(
+        self,
+        batch: list,
+        batch_idx: int,
+        total_batches: int,
+        previous_context: str = ""
+    ) -> list:
         for s in batch:
             if not s.get("hinglish_text"):
                 s["hinglish_text"] = _to_hinglish(s.get("text", ""))
 
         batch_texts = [s.get("hinglish_text", "") for s in batch]
 
+        context_prefix = f"Previous Context: \"{previous_context}\"\n\n" if previous_context else ""
+
         prompt = (
             "You are an expert Hinglish proofreader.\n"
             "Input text is spoken Hindi mixed with English written in Roman script.\n\n"
+            f"{context_prefix}"
             "Task:\n"
             "1. Restore English spelling for English words (e.g. 'stej' -> 'stage', 'kaonphidemsa' -> 'Confidence', 'maltiplayara' -> 'Multiplier', 'cherman' -> 'Chairman', 'skila' -> 'Skill', 'devalapamemta' -> 'Development', 'motiveshana' -> 'Motivation', 'shmart' -> 'Smart').\n"
             "2. Fix Roman Hindi spelling & remove dots/artifacts (e.g. 'pa.dega' -> 'padega', 'apako' -> 'aapko', 'chij' -> 'cheez', 'alaga-alaga' -> 'alag-alag', 'karemge' -> 'karenge', 'jaba' -> 'jab', 'yaha' -> 'yeh', 'upara' -> 'upar').\n"
@@ -55,7 +72,8 @@ class LLMService:
         )
 
         try:
-            response = ollama.chat(
+            client = self._client or ollama
+            response = client.chat(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 format="json",
@@ -94,7 +112,7 @@ class LLMService:
         except Exception as batch_err:
             logger.warning(f"Ollama batch cleanup failed for index {batch_idx}: {batch_err}")
 
-        # Fallback sanitization even if batch LLM failed
+        # Fallback sanitization if batch LLM failed or timed out
         cleaned_batch = []
         for original_item in batch:
             cleaned_item = dict(original_item)
@@ -102,39 +120,37 @@ class LLMService:
             cleaned_batch.append(cleaned_item)
         return cleaned_batch
 
-    def clean_segments(self, segments: list, batch_size: int = 35, max_workers: int = 2) -> list:
+    def clean_segments(self, segments: list, batch_size: int = 12, max_workers: int = 1, language: str = "hi") -> list:
 
         """
-        Batch clean Hinglish transcript segments in parallel using Ollama local LLM.
+        Batch clean Hinglish transcript segments sequentially using Ollama local LLM.
         Fixes English misspellings without translating Hinglish sentences.
+        Carries context forward across batches.
         """
         if not segments or not self.is_available():
             logger.info("Ollama LLM cleanup skipped (Ollama offline or no segments).")
+            # Apply fast local regex sanitization even if LLM is skipped
+            for s in segments:
+                if not s.get("hinglish_text"):
+                    s["hinglish_text"] = _to_hinglish(s.get("text", ""))
+                s["hinglish_text"] = _sanitize_hinglish_text(s.get("hinglish_text", ""))
             return segments
 
-        logger.info(f"Starting parallel Ollama LLM cleanup ({len(segments)} segments across {max_workers} threads)...")
+        logger.info(f"Starting Ollama LLM cleanup ({len(segments)} segments in batches of {batch_size})...")
 
         batches = [segments[i:i + batch_size] for i in range(0, len(segments), batch_size)]
         total_batches = len(batches)
-        cleaned_results: list = [None] * total_batches
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_idx: dict = {
-                executor.submit(self._clean_single_batch, batch, idx, total_batches): idx
-                for idx, batch in enumerate(batches)
-            }
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                try:
-                    cleaned_results[idx] = future.result(timeout=15.0)
-                except Exception as exc:
-                    logger.warning(f"Batch {idx} generated exception or timed out: {exc}")
-                    cleaned_results[idx] = batches[idx]
-
         final_segments = []
-        for res in cleaned_results:
-            if res:
-                final_segments.extend(res)
+        prev_context = ""
 
-        logger.info("Parallel Ollama LLM cleanup finished.")
+        # Run sequentially to match local Ollama inference queueing and maintain rolling context
+        for idx, batch in enumerate(batches):
+            cleaned_batch = self._clean_single_batch(batch, idx, total_batches, previous_context=prev_context)
+            final_segments.extend(cleaned_batch)
+            if cleaned_batch:
+                # Grab last 2 cleaned lines to serve as context for next batch
+                tail_texts = [b.get("hinglish_text", "") for b in cleaned_batch[-2:] if b.get("hinglish_text")]
+                prev_context = " ".join(tail_texts)
+
+        logger.info("Ollama LLM cleanup finished successfully.")
         return final_segments

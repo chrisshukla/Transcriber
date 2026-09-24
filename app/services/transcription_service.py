@@ -101,48 +101,71 @@ class TranscriptionService:
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             total_chunks = len(chunks)
-            max_chunk_workers = 1
             completed_count = 0
+            previous_tail_prompt = None
 
-            def _process_chunk(item):
-                idx, ch = item
-                logger.info(f"Processing chunk {idx + 1}/{total_chunks}")
-                res = self.whisper.transcribe(ch["path"])
-                return idx, ch, res
+            logger.info(f"Transcribing {total_chunks} chunks sequentially with cross-chunk context priming...")
 
-            logger.info(f"Transcribing {total_chunks} chunks using {max_chunk_workers} parallel CPU workers...")
+            primary_language = None
 
-            with ThreadPoolExecutor(max_workers=max_chunk_workers) as executor:
-                futures = [executor.submit(_process_chunk, item) for item in enumerate(chunks)]
-                for future in as_completed(futures):
-                    idx, chunk, chunk_result = future.result()
+            for idx, chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {idx + 1}/{total_chunks}...")
 
-                    if language is None:
-                        language = chunk_result["language"]
+                ch_path_str = str(chunk.get("path", ""))
+                ch_offset = float(chunk.get("offset", 0.0))
 
-                    if language_probability is None:
-                        language_probability = chunk_result.get("language_probability")
+                # Allow Whisper to auto-detect language dynamically per chunk for multilingual code-switching (Hindi, English, Gujarati, etc.)
+                chunk_result = self.whisper.transcribe(
+                    ch_path_str,
+                    language=None,
+                    initial_prompt=previous_tail_prompt
+                )
 
-                    processing_time += chunk_result.get("processing_time", 0)
+                chunk_lang = str(chunk_result.get("language", "en"))
+                if primary_language is None:
+                    primary_language = chunk_lang
 
-                    duration = max(
-                        duration,
-                        chunk["offset"] + chunk_result["duration"]
-                    )
+                if language_probability is None:
+                    language_probability = chunk_result.get("language_probability")
 
-                    for segment in chunk_result["segments"]:
-                        segment["start"] += chunk["offset"]
-                        segment["end"] += chunk["offset"]
-                        all_segments.append(segment)
+                processing_time += float(chunk_result.get("processing_time", 0.0))
 
-                    completed_count += 1
-                    progress = 30 + int((completed_count / total_chunks) * 50)
+                ch_duration = float(chunk_result.get("duration", 0.0))
+                duration = max(
+                    duration,
+                    ch_offset + ch_duration
+                )
 
-                    self.jobs.update_progress(
-                        job_id,
-                        progress,
-                        JobStatus.TRANSCRIBING
-                    )
+                chunk_segments: list[dict] = chunk_result.get("segments", [])
+                for segment in chunk_segments:
+                    segment["start"] = float(segment.get("start", 0.0)) + ch_offset
+                    segment["end"] = float(segment.get("end", 0.0)) + ch_offset
+                    all_segments.append(segment)
+
+                # Extract trailing 200 chars of text from chunk to prime next chunk's context
+                if chunk_segments:
+                    tail_texts: list[str] = [
+                        str(s.get("text", "")) for s in chunk_segments[-3:] if s and s.get("text")
+                    ]
+                    previous_tail_prompt = " ".join(tail_texts)[-200:]
+
+                # Delete chunk WAV file immediately to avoid cleanup backlog at the end of execution
+                try:
+                    if ch_path_str:
+                        ch_path = Path(ch_path_str)
+                        if ch_path.exists():
+                            ch_path.unlink()
+                except Exception as chunk_del_err:
+                    logger.warning(f"Could not immediately delete chunk WAV {ch_path_str}: {chunk_del_err}")
+
+                completed_count += 1
+                progress = 30 + int((completed_count / total_chunks) * 50)
+
+                self.jobs.update_progress(
+                    job_id,
+                    progress,
+                    JobStatus.TRANSCRIBING
+                )
 
             all_segments.sort(key=lambda s: s["start"])
 
@@ -168,7 +191,7 @@ class TranscriptionService:
                 seg["hinglish_text"] = _to_hinglish(seg.get("text", ""))
 
             # Clean English spellings and typos in Hinglish text using Ollama local LLM
-            all_segments = self.llm.clean_segments(all_segments)
+            all_segments = self.llm.clean_segments(all_segments, language=primary_language or "hi")
 
             clean_name = Path(filename).name
             clean_stem = re.sub(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_', '', clean_name, flags=re.IGNORECASE)
@@ -177,7 +200,7 @@ class TranscriptionService:
 
             result = {
                 "filename": clean_name,
-                "language": language,
+                "language": primary_language,
                 "language_probability": language_probability,
                 "processing_time": round(processing_time, 2),
                 "duration": duration,
@@ -190,7 +213,7 @@ class TranscriptionService:
             # ------------------------------------
             self.jobs.set_language(
                 job_id,
-                language or "en"
+                primary_language or "en"
             )
 
             self.jobs.set_duration(

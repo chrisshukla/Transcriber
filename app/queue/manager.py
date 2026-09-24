@@ -107,6 +107,13 @@ class JobManager:
 
     async def enqueue_job(self, video_path: str, job_id: str):
         self.update_status(job_id, JobStatus.QUEUED)
+        from app.queue.celery_app import is_celery_available
+        if is_celery_available():
+            from app.queue.tasks import transcribe_task
+            logger.info(f"Dispatching job {job_id} to Redis/Celery worker queue...")
+            transcribe_task.delay(video_path, job_id)
+            return
+
         if job_id not in self._queued_ids and job_id != self._active_job_id:
             self._queued_ids.add(job_id)
             await self.queue.put((video_path, job_id))
@@ -142,6 +149,14 @@ class JobManager:
 
         # Reset progress to 0% and enqueue
         self.update_progress(job_id, 0, JobStatus.QUEUED)
+
+        from app.queue.celery_app import is_celery_available
+        if is_celery_available():
+            from app.queue.tasks import transcribe_task
+            logger.info(f"Dispatching retried job {job_id} to Redis/Celery worker queue...")
+            transcribe_task.delay(video_path, job_id)
+            return True
+
         if job_id not in self._queued_ids and job_id != self._active_job_id:
             self._queued_ids.add(job_id)
             await self.queue.put((video_path, job_id))

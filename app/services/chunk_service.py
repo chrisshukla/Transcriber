@@ -1,57 +1,81 @@
+import subprocess
 from pathlib import Path
-from typing import Any
-from pydub import AudioSegment  # type: ignore # pyrefly: ignore [missing-import]
 
 from app.utils.logger import logger
 
 
 class ChunkService:
 
+    def get_duration(self, audio_path: str) -> float:
+        """Probe audio duration in seconds using ffprobe without loading audio into memory."""
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            audio_path,
+        ]
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            return float(res.stdout.strip())
+        except Exception as err:
+            logger.warning(f"ffprobe failed for {audio_path}: {err}. Falling back to default estimation.")
+            return 0.0
+
     def split_audio(
         self,
         audio_path: str,
-        job_id:str,
+        job_id: str,
         chunk_minutes: int = 10,
-    ):
-
-        audio: Any = AudioSegment.from_file(audio_path)
-
-        output_folder = Path("chunks")/job_id
+    ) -> list[dict]:
+        output_folder = Path("chunks") / job_id
         output_folder.mkdir(parents=True, exist_ok=True)
 
-        chunk_length = chunk_minutes * 60 * 1000
+        duration_sec = self.get_duration(audio_path)
+        chunk_length_sec = chunk_minutes * 60
 
-        total_chunks = (len(audio) + chunk_length - 1) // chunk_length
+        if duration_sec <= 0:
+            logger.warning(f"Could not determine exact duration for {audio_path}. Processing as single chunk.")
+            return [{"path": audio_path, "offset": 0.0, "duration": 0.0}]
 
-        logger.info(
-            f"Creating {total_chunks} chunks..."
-        )
+        total_chunks = int((duration_sec + chunk_length_sec - 0.001) // chunk_length_sec)
+        logger.info(f"Stream-chunking {duration_sec:.2f}s audio into {total_chunks} chunks using FFmpeg (0-RAM overhead)...")
 
         chunk_files = []
 
         for i in range(total_chunks):
-
-            start = i * chunk_length
-            end = min(start + chunk_length, len(audio))
-
-            chunk: Any = audio[start:end]
-
+            start_sec = i * chunk_length_sec
+            actual_chunk_duration = min(chunk_length_sec, duration_sec - start_sec)
             filename = f"chunk_{i+1:04d}.wav"
-
             output = output_folder / filename
 
-            chunk.export(output, format="wav")
+            # Use FFmpeg stream copying (-c copy or pcm_s16le) to split chunk instantly without memory allocation
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start_sec),
+                "-t", str(actual_chunk_duration),
+                "-i", audio_path,
+                "-c", "copy",
+                str(output),
+            ]
 
-            logger.info(f"Saved {filename}")
+            try:
+                subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            except Exception as ffmpeg_err:
+                logger.warning(f"FFmpeg copy failed for {filename}: {ffmpeg_err}. Retrying with PCM re-encoding...")
+                reencode_cmd = [
+                    "ffmpeg", "-y", "-ss", str(start_sec), "-t", str(actual_chunk_duration),
+                    "-i", audio_path, "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(output)
+                ]
+                subprocess.run(reencode_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-            chunk_files.append(
-                {
-                    "path": str(output),
-                    "offset": start / 1000,
-                    "duration": (end - start) / 1000,
-                }
-            )
+            logger.info(f"FFmpeg created chunk {i+1}/{total_chunks}: {filename}")
+            chunk_files.append({
+                "path": str(output),
+                "offset": start_sec,
+                "duration": actual_chunk_duration,
+            })
 
-        logger.info("Chunking complete.")
-
+        logger.info("FFmpeg audio chunking complete.")
         return chunk_files

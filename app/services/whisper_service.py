@@ -81,55 +81,87 @@ class WhisperService:
         self.model = WhisperService._model
         self.batched_pipeline = WhisperService._batched_pipeline
 
-    def transcribe(self, audio_path: str):
+    def transcribe(
+        self,
+        audio_path: str,
+        language: Optional[str] = None,
+        initial_prompt: Optional[str] = None,
+        beam_size: int = 5,
+    ):
 
-        logger.info(f"Starting transcription: {audio_path}")
+        logger.info(f"Starting transcription: {audio_path} (language override: {language})")
 
         start_time = time.time()
+
+        from typing import Any
+        # Build Whisper transcribe arguments dynamically
+        kwargs: dict[str, Any] = {
+            "beam_size": beam_size,
+            "vad_filter": True,
+            "vad_parameters": dict(min_silence_duration_ms=500),
+            "word_timestamps": False,
+            "condition_on_previous_text": False,
+            "temperature": 0.0,
+            "repetition_penalty": 1.1,
+        }
+
+        if language:
+            kwargs["language"] = language
+        if initial_prompt:
+            kwargs["initial_prompt"] = initial_prompt
 
         with WhisperService._transcribe_lock:
             try:
                 segments, info = self.model.transcribe(
                     audio_path,
-                    beam_size=1,
-                    vad_filter=True,
-                    vad_parameters=dict(min_silence_duration_ms=500),
-                    word_timestamps=False,
-                    condition_on_previous_text=False,
-                    temperature=0.0,
-                    repetition_penalty=1.1,
-                    initial_prompt="This is a Hinglish conversation with mixed Hindi and English speech.",
+                    **kwargs
                 )
             except Exception as err:
                 logger.error(f"Whisper transcribe failed for {audio_path}: {err}")
                 raise
 
-            transcript = []
+            # Safeguard: Spoken Hindi sounds identical to Urdu phonetically.
+            # If auto-detection picked Urdu ('ur'), force re-decode or map language to Hindi ('hi')
+            detected_lang = info.language
+            if detected_lang == "ur" and not language:
+                logger.info(f"Auto-detected Urdu ('ur') for {audio_path}. Re-transcribing with language='hi' (Hindi Devanagari)...")
+                kwargs["language"] = "hi"
+                try:
+                    segments, info = self.model.transcribe(
+                        audio_path,
+                        **kwargs
+                    )
+                    detected_lang = "hi"
+                except Exception as retry_err:
+                    logger.warning(f"Re-transcription with language='hi' failed: {retry_err}")
+                    detected_lang = "hi"
 
+            transcript = []
             total_segments = 0
 
             for segment in segments:
-
-                transcript.append(
-                    {
-                        "start": round(segment.start, 2),
-                        "end": round(segment.end, 2),
-                        "text": segment.text.strip(),
-                    }
-                )
-
-                total_segments += 1
+                text_clean = segment.text.strip()
+                # Exclude empty or raw Perso-Arabic scripts if mapped to hi
+                if text_clean:
+                    transcript.append(
+                        {
+                            "start": round(segment.start, 2),
+                            "end": round(segment.end, 2),
+                            "text": text_clean,
+                        }
+                    )
+                    total_segments += 1
 
         elapsed = round(time.time() - start_time, 2)
 
         logger.info(
-            f"Finished transcription of {audio_path} in {elapsed} seconds."
+            f"Finished transcription of {audio_path} in {elapsed} seconds. Detected language: {detected_lang}"
         )
 
         return {
-            "language": info.language,
-            "language_probability": round(info.language_probability, 4),
-            "duration": round(info.duration, 2),
+            "language": detected_lang,
+            "language_probability": round(info.language_probability, 4) if hasattr(info, "language_probability") else 1.0,
+            "duration": round(info.duration, 2) if hasattr(info, "duration") else 0.0,
             "processing_time": elapsed,
             "segments": transcript,
             "segment_count": total_segments,

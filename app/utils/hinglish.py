@@ -12,6 +12,8 @@ except ImportError:
 def _sanitize_hinglish_text(text: str) -> str:
     if not text:
         return text
+    # Strip any Perso-Arabic script unicode range (\u0600 - \u06FF) if present
+    text = re.sub(r"[\u0600-\u06FF]+", "", text).strip()
     text = text.replace(".dega", "dega").replace(".degi", "degi").replace(".d", "d").replace(".N", "n").replace(".m", "m")
     replacements = [
         (r"\bstej\b", "stage"),
@@ -78,6 +80,10 @@ def _sanitize_hinglish_text(text: str) -> str:
 
 
 def _to_hinglish(text: str) -> str:
+    if not text:
+        return text
+    # Strip any leftover Urdu script range before transliteration
+    text = re.sub(r"[\u0600-\u06FF]+", "", text).strip()
     if not INDIC_AVAILABLE or not text:
         return text
     if any("\u0900" <= char <= "\u097F" for char in text):
