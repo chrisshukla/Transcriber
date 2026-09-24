@@ -98,11 +98,13 @@ class WhisperService:
         kwargs: dict[str, Any] = {
             "beam_size": beam_size,
             "vad_filter": True,
-            "vad_parameters": dict(min_silence_duration_ms=500),
+            "vad_parameters": dict(min_silence_duration_ms=500, speech_pad_ms=400),
+            "no_speech_threshold": 0.6,
+            "hallucination_silence_threshold": 1.5,
             "word_timestamps": False,
             "condition_on_previous_text": False,
             "temperature": 0.0,
-            "repetition_penalty": 1.1,
+            "repetition_penalty": 1.15,
         }
 
         if language:

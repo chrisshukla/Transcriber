@@ -72,6 +72,16 @@ def _sanitize_hinglish_text(text: str) -> str:
         (r"\bmujharemge\b", "guzrenge"),
         (r"\bdhyana\b", "dhyan"),
         (r"\badatom\b", "aadat"),
+        (r"\bE for tough\b", "T for tough"),
+        (r"\bdil man\b", "the man"),
+        (r"\bman hos\b", "man who is"),
+        (r"\bwich\b", "with"),
+        (r"\bsam\b", "some"),
+        (r"\bskils\b", "skills"),
+        (r"\bpeepol\b", "people"),
+        (r"\bordinari\b", "ordinary"),
+        (r"\bkepyabiliteaja\b", "capabilities"),
+        (r"\bkaaphabila\b", "kaabil"),
         (r"\bsherom\b", "shehron"),
     ]
     for pat, repl in replacements:
