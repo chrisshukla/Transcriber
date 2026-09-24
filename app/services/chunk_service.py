@@ -49,26 +49,24 @@ class ChunkService:
             filename = f"chunk_{i+1:04d}.wav"
             output = output_folder / filename
 
-            # Use FFmpeg stream copying (-c copy or pcm_s16le) to split chunk instantly without memory allocation
+            # Stream-slice chunk with exact 16kHz mono PCM encoding for Whisper compatibility
             ffmpeg_cmd = [
                 "ffmpeg",
                 "-y",
                 "-ss", str(start_sec),
                 "-t", str(actual_chunk_duration),
                 "-i", audio_path,
-                "-c", "copy",
+                "-acodec", "pcm_s16le",
+                "-ar", "16000",
+                "-ac", "1",
                 str(output),
             ]
 
             try:
                 subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             except Exception as ffmpeg_err:
-                logger.warning(f"FFmpeg copy failed for {filename}: {ffmpeg_err}. Retrying with PCM re-encoding...")
-                reencode_cmd = [
-                    "ffmpeg", "-y", "-ss", str(start_sec), "-t", str(actual_chunk_duration),
-                    "-i", audio_path, "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(output)
-                ]
-                subprocess.run(reencode_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                logger.warning(f"FFmpeg chunk creation failed for {filename}: {ffmpeg_err}")
+                raise
 
             logger.info(f"FFmpeg created chunk {i+1}/{total_chunks}: {filename}")
             chunk_files.append({

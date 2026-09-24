@@ -114,14 +114,19 @@ class TranscriptionService:
                 ch_path_str = str(chunk.get("path", ""))
                 ch_offset = float(chunk.get("offset", 0.0))
 
-                # Allow Whisper to auto-detect language dynamically per chunk for multilingual code-switching (Hindi, English, Gujarati, etc.)
+                # Pass primary_language to subsequent chunks once detected to prevent language flip-flopping mid-transcription
+                target_lang = primary_language if (primary_language and primary_language != "ur") else None
+
                 chunk_result = self.whisper.transcribe(
                     ch_path_str,
-                    language=None,
+                    language=target_lang,
                     initial_prompt=previous_tail_prompt
                 )
 
-                chunk_lang = str(chunk_result.get("language", "en"))
+                chunk_lang = str(chunk_result.get("language", "hi"))
+                if chunk_lang == "ur":
+                    chunk_lang = "hi"
+
                 if primary_language is None:
                     primary_language = chunk_lang
 
