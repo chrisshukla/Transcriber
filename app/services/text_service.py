@@ -1,3 +1,6 @@
+from pathlib import Path
+from app.utils.logger import logger
+
 def _format_timestamp(seconds: float | int) -> str:
     total_secs = int(seconds)
     hours = total_secs // 3600
@@ -44,4 +47,4 @@ class TextService:
 
         logger.info("TXT generated successfully.")
 
-        return str(output)
+        return str(output)
