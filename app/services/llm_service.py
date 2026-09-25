@@ -79,7 +79,11 @@ class LLMService:
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 format="json",
-                options={"temperature": 0.0}
+                options={
+                    "temperature": 0.1,
+                    "repeat_penalty": 1.15,
+                    "num_predict": 1024,
+                }
             )
 
             if hasattr(response, "message"):
@@ -122,7 +126,7 @@ class LLMService:
             cleaned_batch.append(cleaned_item)
         return cleaned_batch, False
 
-    def clean_segments(self, segments: list, batch_size: int = 6, max_workers: int = 1, language: str = "hi") -> list:
+    def clean_segments(self, segments: list, batch_size: int = 5, max_workers: int = 1, language: str = "hi") -> list:
 
         """
         Batch clean Hinglish transcript segments sequentially using Ollama local LLM.
@@ -148,7 +152,7 @@ class LLMService:
 
         # Run sequentially to match local Ollama inference queueing and maintain rolling context
         for idx, batch in enumerate(batches):
-            if consecutive_failures >= 2:
+            if consecutive_failures >= 4:
                 logger.warning(
                     f"Ollama experienced {consecutive_failures} consecutive failures/timeouts. "
                     "Skipping remaining LLM calls and applying fast regex sanitization to save time."

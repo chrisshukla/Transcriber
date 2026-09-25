@@ -86,6 +86,7 @@ def _sanitize_hinglish_text(text: str) -> str:
     ]
     for pat, repl in replacements:
         text = re.sub(pat, repl, text, flags=re.IGNORECASE)
+
     return text
 
 
