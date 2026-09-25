@@ -121,6 +121,7 @@ class WhisperService:
             "word_timestamps": False,
             "condition_on_previous_text": False,
             "temperature": 0.0,
+            "repetition_penalty": 1.1,
         }
 
         if language:

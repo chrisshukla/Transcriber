@@ -87,6 +87,9 @@ def _sanitize_hinglish_text(text: str) -> str:
     for pat, repl in replacements:
         text = re.sub(pat, repl, text, flags=re.IGNORECASE)
 
+    # Collapse artificial neural decoder loops within a single word (e.g. "बेट्वेट्वेट्वेट्वे" -> "बेट्वे", "banayayayaya" -> "banaya")
+    text = re.sub(r'(\S{1,6}?)\1{3,}', r'\1', text)
+
     return text
 
 
@@ -95,6 +98,8 @@ def _to_hinglish(text: str) -> str:
         return text
     # Strip any leftover Urdu script range before transliteration
     text = re.sub(r"[\u0600-\u06FF]+", "", text).strip()
+    # Pre-collapse any Devanagari token loops before transliteration
+    text = re.sub(r'(\S{1,6}?)\1{3,}', r'\1', text)
     if not INDIC_AVAILABLE or not text:
         return text
     if any("\u0900" <= char <= "\u097F" for char in text):
