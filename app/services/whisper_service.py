@@ -1,6 +1,21 @@
+import os
+import sys
+import site
 import time
 import threading
 from typing import Optional
+
+# Ensure NVIDIA CUDA DLLs are registered on Windows
+if sys.platform == "win32":
+    for p in site.getsitepackages() + [site.getusersitepackages()]:
+        if os.path.exists(p):
+            for pkg in ["cublas", "cudnn", "cuda_nvrtc"]:
+                bin_path = os.path.join(p, "nvidia", pkg, "bin")
+                if os.path.exists(bin_path):
+                    try:
+                        os.add_dll_directory(bin_path)
+                    except Exception:
+                        pass
 
 from faster_whisper import WhisperModel  # type: ignore
 
@@ -43,7 +58,7 @@ class WhisperService:
             if compute_type == "auto":
 
                 if device == "cuda":
-                    compute_type = "float16"
+                    compute_type = "int8_float16"
                 else:
                     compute_type = "int8"
 
@@ -70,8 +85,8 @@ class WhisperService:
                 )
 
             try:
-                from faster_whisper import BatchedInferencePipeline
-                WhisperService._batched_pipeline = BatchedInferencePipeline(model=WhisperService._model)
+                from faster_whisper import BatchedInferencePipeline  # type: ignore
+                WhisperService._batched_pipeline = BatchedInferencePipeline(model=WhisperService._model)  # type: ignore
                 logger.info("Faster-Whisper BatchedInferencePipeline enabled for maximum speed.")
             except Exception as batch_err:
                 logger.warning(f"BatchedInferencePipeline not initialized, falling back to standard pipeline: {batch_err}")
@@ -86,10 +101,13 @@ class WhisperService:
         audio_path: str,
         language: Optional[str] = None,
         initial_prompt: Optional[str] = None,
-        beam_size: int = 5,
+        beam_size: int = 2,
     ):
 
         logger.info(f"Starting transcription: {audio_path} (language override: {language})")
+
+        if self.model is None:
+            raise RuntimeError("Whisper model is not initialized.")
 
         start_time = time.time()
 
@@ -114,10 +132,17 @@ class WhisperService:
 
         with WhisperService._transcribe_lock:
             try:
-                segments, info = self.model.transcribe(
-                    audio_path,
-                    **kwargs
-                )
+                if self.batched_pipeline is not None:
+                    segments, info = self.batched_pipeline.transcribe(
+                        audio_path,
+                        batch_size=4,
+                        **kwargs
+                    )
+                else:
+                    segments, info = self.model.transcribe(
+                        audio_path,
+                        **kwargs
+                    )
             except Exception as err:
                 logger.error(f"Whisper transcribe failed for {audio_path}: {err}")
                 raise
@@ -129,10 +154,17 @@ class WhisperService:
                 logger.info(f"Auto-detected Urdu ('ur') for {audio_path}. Re-transcribing with language='hi' (Hindi Devanagari)...")
                 kwargs["language"] = "hi"
                 try:
-                    segments, info = self.model.transcribe(
-                        audio_path,
-                        **kwargs
-                    )
+                    if self.batched_pipeline is not None:
+                        segments, info = self.batched_pipeline.transcribe(
+                            audio_path,
+                            batch_size=4,
+                            **kwargs
+                        )
+                    else:
+                        segments, info = self.model.transcribe(
+                            audio_path,
+                            **kwargs
+                        )
                     detected_lang = "hi"
                 except Exception as retry_err:
                     logger.warning(f"Re-transcription with language='hi' failed: {retry_err}")

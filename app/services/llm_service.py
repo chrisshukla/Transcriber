@@ -15,13 +15,14 @@ from app.utils.hinglish import _sanitize_hinglish_text, _to_hinglish
 
 class LLMService:
 
-    def __init__(self, model_name: str = "llama3.2"):
+    def __init__(self, model_name: str = "llama3.2", timeout: float = 60.0):
         self.model_name = model_name
+        self.timeout = timeout
         self._client = None
         if OLLAMA_CLIENT_INSTALLED:
             try:
-                # Set a strict 15-second network timeout per request on Ollama client
-                self._client = ollama.Client(timeout=15.0)
+                # Set a reasonable 60-second network timeout per request on Ollama client
+                self._client = ollama.Client(timeout=self.timeout)
             except Exception as e:
                 logger.warning(f"Could not initialize ollama.Client with timeout: {e}")
 
@@ -49,7 +50,7 @@ class LLMService:
         batch_idx: int,
         total_batches: int,
         previous_context: str = ""
-    ) -> list:
+    ) -> tuple[list, bool]:
         for s in batch:
             if not s.get("hinglish_text"):
                 s["hinglish_text"] = _to_hinglish(s.get("text", ""))
@@ -108,7 +109,7 @@ class LLMService:
                     cleaned_item["hinglish_text"] = _sanitize_hinglish_text(cleaned_item["hinglish_text"])
                     cleaned_batch.append(cleaned_item)
                 logger.info(f"Ollama cleaned batch {batch_idx + 1}/{total_batches}")
-                return cleaned_batch
+                return cleaned_batch, True
 
         except Exception as batch_err:
             logger.warning(f"Ollama batch cleanup failed for index {batch_idx}: {batch_err}")
@@ -119,9 +120,9 @@ class LLMService:
             cleaned_item = dict(original_item)
             cleaned_item["hinglish_text"] = _sanitize_hinglish_text(cleaned_item.get("hinglish_text", ""))
             cleaned_batch.append(cleaned_item)
-        return cleaned_batch
+        return cleaned_batch, False
 
-    def clean_segments(self, segments: list, batch_size: int = 12, max_workers: int = 1, language: str = "hi") -> list:
+    def clean_segments(self, segments: list, batch_size: int = 6, max_workers: int = 1, language: str = "hi") -> list:
 
         """
         Batch clean Hinglish transcript segments sequentially using Ollama local LLM.
@@ -143,15 +144,33 @@ class LLMService:
         total_batches = len(batches)
         final_segments = []
         prev_context = ""
+        consecutive_failures = 0
 
         # Run sequentially to match local Ollama inference queueing and maintain rolling context
         for idx, batch in enumerate(batches):
-            cleaned_batch = self._clean_single_batch(batch, idx, total_batches, previous_context=prev_context)
+            if consecutive_failures >= 2:
+                logger.warning(
+                    f"Ollama experienced {consecutive_failures} consecutive failures/timeouts. "
+                    "Skipping remaining LLM calls and applying fast regex sanitization to save time."
+                )
+                for remaining_batch in batches[idx:]:
+                    for item in remaining_batch:
+                        cleaned_item = dict(item)
+                        cleaned_item["hinglish_text"] = _sanitize_hinglish_text(cleaned_item.get("hinglish_text", ""))
+                        final_segments.append(cleaned_item)
+                break
+
+            cleaned_batch, success = self._clean_single_batch(batch, idx, total_batches, previous_context=prev_context)
+            if success:
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+
             final_segments.extend(cleaned_batch)
             if cleaned_batch:
                 # Grab last 2 cleaned lines to serve as context for next batch
                 tail_texts = [b.get("hinglish_text", "") for b in cleaned_batch[-2:] if b.get("hinglish_text")]
                 prev_context = " ".join(tail_texts)
 
-        logger.info("Ollama LLM cleanup finished successfully.")
+        logger.info("Ollama LLM cleanup finished.")
         return final_segments

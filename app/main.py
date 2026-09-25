@@ -1,3 +1,30 @@
+import os
+import sys
+import site
+
+# Register pip-installed NVIDIA CUDA/cuDNN DLL paths on Windows so CTranslate2 can load cublas64_12.dll
+if sys.platform == "win32":
+    for p in site.getsitepackages() + [site.getusersitepackages()]:
+        if os.path.exists(p):
+            for pkg in ["cublas", "cudnn", "cuda_nvrtc"]:
+                bin_path = os.path.join(p, "nvidia", pkg, "bin")
+                if os.path.exists(bin_path):
+                    if bin_path not in os.environ["PATH"]:
+                        os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
+                    try:
+                        os.add_dll_directory(bin_path)
+                    except Exception:
+                        pass
+            # Also check direct nvidia bin
+            nvidia_bin = os.path.join(p, "nvidia", "bin")
+            if os.path.exists(nvidia_bin):
+                if nvidia_bin not in os.environ["PATH"]:
+                    os.environ["PATH"] = nvidia_bin + os.pathsep + os.environ["PATH"]
+                try:
+                    os.add_dll_directory(nvidia_bin)
+                except Exception:
+                    pass
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI  # type: ignore # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore # pyrefly: ignore [missing-import]

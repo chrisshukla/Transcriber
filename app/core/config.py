@@ -32,11 +32,11 @@ for directory in (
 # Set to 'large-v3-turbo' for 2.5x FASTER transcription speed with nearly identical accuracy!
 import os
 
-WHISPER_MODEL_SIZE = "large-v3"
-WHISPER_DEVICE = "auto"
-WHISPER_COMPUTE_TYPE = "auto"
+WHISPER_MODEL_SIZE = "large-v3-turbo"
+WHISPER_DEVICE = "cuda"
+WHISPER_COMPUTE_TYPE = "float16"
 
 # Reserve 2 CPU logical cores for OS, Uvicorn server, and browser UI responsiveness
 WHISPER_CPU_THREADS = max(1, (os.cpu_count() or 4) - 2)
 
-
+

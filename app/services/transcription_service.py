@@ -109,9 +109,17 @@ class TranscriptionService:
             primary_language = None
 
             for idx, chunk in enumerate(chunks):
+                if self.jobs.is_cancelled(job_id):
+                    logger.info(f"Job {job_id} was cancelled/deleted. Halting processing loop.")
+                    return
+
                 logger.info(f"Processing chunk {idx + 1}/{total_chunks}...")
 
                 ch_path_str = str(chunk.get("path", ""))
+                if not Path(ch_path_str).exists():
+                    logger.warning(f"Chunk audio missing ({ch_path_str}), likely cancelled/deleted.")
+                    return
+
                 ch_offset = float(chunk.get("offset", 0.0))
 
                 # Pass primary_language to subsequent chunks once detected to prevent language flip-flopping mid-transcription

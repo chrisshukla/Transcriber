@@ -14,6 +14,7 @@ class JobManager:
         self.repository = JobRepository()
         self._queue = None
         self._queued_ids = set()
+        self._cancelled_ids = set()
         self._active_job_id = None
         self._worker_task = None
         self._recovered = False
@@ -350,9 +351,12 @@ class JobManager:
                     logger.warning(f"Failed to delete chunk dir {chunk_dir}: {e}")
 
         self._queued_ids.discard(job_id)
+        self._cancelled_ids.add(job_id)
         self.repository.delete_job(job_id)
         return True
 
+    def is_cancelled(self, job_id: str) -> bool:
+        return (job_id in self._cancelled_ids) or (not self.exists(job_id))
 
     def exists(self, job_id: str):
 
