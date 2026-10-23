@@ -46,7 +46,7 @@ async def get_job(job_id: str):
     "/{job_id}/retry",
     response_model=MessageResponse
 )
-async def retry_job(job_id: str):
+async def retry_job(job_id: str, language: str = "hi"):
     """
     Retry or resume an interrupted/failed job.
     """
@@ -56,7 +56,7 @@ async def retry_job(job_id: str):
             detail="Job not found."
         )
 
-    success = await job_manager.retry_job(job_id)
+    success = await job_manager.retry_job(job_id, language=language)
 
     if not success:
         raise HTTPException(

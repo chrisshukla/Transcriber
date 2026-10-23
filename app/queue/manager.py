@@ -120,7 +120,7 @@ class JobManager:
             await self.queue.put((video_path, job_id))
         await self.start_worker()
 
-    async def retry_job(self, job_id: str) -> bool:
+    async def retry_job(self, job_id: str, language: Optional[str] = "hi") -> bool:
         job_row = self.repository.get_job(job_id)
         if not job_row:
             return False
@@ -148,7 +148,9 @@ class JobManager:
             except Exception:
                 pass
 
-        # Reset progress to 0% and enqueue
+        # Reset progress to 0%, set language to requested (or default 'hi' for verbatim word-for-word), and enqueue
+        if language:
+            self.set_language(job_id, language)
         self.update_progress(job_id, 0, JobStatus.QUEUED)
 
         from app.queue.celery_app import is_celery_available
@@ -196,13 +198,14 @@ class JobManager:
 
         return job
 
-    def create_job(self, filename: str) -> Job:
+    def create_job(self, filename: str, language: Optional[str] = None) -> Job:
 
-        job = Job(filename=filename)
+        job = Job(filename=filename, language=language)
 
         self.repository.create_job(
             job.id,
-            job.filename
+            job.filename,
+            language=language
         )
 
         return job

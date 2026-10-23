@@ -64,10 +64,10 @@ class LLMService:
             "Input text is spoken Hindi-English code-switching written in Roman/Devanagari script.\n\n"
             f"{context_prefix}"
             "Task:\n"
-            "1. Restore proper English spelling for English words (e.g., 'stej' -> 'stage', 'wich'/'vich' -> 'with', 'peepol' -> 'people', 'kaonphidemsa' -> 'Confidence', 'maltiplayar' -> 'Multiplier', 'cherman' -> 'Chairman', 'devalapamemta' -> 'Development', 'motiveshana' -> 'Motivation', 'shmart' -> 'Smart', 'dil man' -> 'the man', 'man hos' -> 'man who is', 'E for tough' -> 'T for tough').\n"
-            "2. Remove obvious background music/applause hallucinations or garbled non-speech noise.\n"
+            "1. STRICT WORD-FOR-WORD VERBATIM: Do NOT delete, omit, summarize, shorten, or remove ANY spoken words. Preserve all words and sentence structure exactly as spoken.\n"
+            "2. Restore proper English spelling for phonetically transcribed English words (e.g., 'stej' -> 'stage', 'wich'/'vich' -> 'with', 'peepol' -> 'people', 'kaonphidemsa' -> 'confidence', 'maltiplayar' -> 'multiplier', 'cherman' -> 'chairman', 'devalapamemta' -> 'development', 'motiveshana' -> 'motivation', 'shmart' -> 'smart', 'dil man' -> 'the man', 'man hos' -> 'man who is', 'E for tough' -> 'T for tough').\n"
             "3. Fix Roman Hindi spelling & remove transliteration artifacts (e.g., 'pa.dega' -> 'padega', 'apako' -> 'aapko', 'chij' -> 'cheez', 'alaga-alaga' -> 'alag-alag', 'karemge' -> 'karenge').\n"
-            "4. DO NOT translate Hindi words to English. Keep Hindi words in clean Roman/Devanagari script as intended and preserve capitalization of brand terms (e.g. 'Smart', 'Gurukul', 'Multiplier', 'RTI').\n\n"
+            "4. DO NOT translate Hindi words to English. Keep Hindi words in clean Roman/Devanagari script as intended and preserve brand terms (e.g. 'Smart', 'Gurukul', 'Multiplier', 'RTI').\n\n"
             "Output JSON format:\n"
             "{\"cleaned_segments\": [\"sentence 1\", \"sentence 2\", ...]}\n\n"
             f"Input:\n{json.dumps(batch_texts, ensure_ascii=False)}"
@@ -108,8 +108,17 @@ class LLMService:
                 cleaned_batch = []
                 for i, original_item in enumerate(batch):
                     cleaned_item = dict(original_item)
+                    orig_text = original_item.get("hinglish_text", "")
                     if i < len(corrected_texts) and str(corrected_texts[i]).strip():
-                        cleaned_item["hinglish_text"] = str(corrected_texts[i]).strip()
+                        candidate = str(corrected_texts[i]).strip()
+                        # Strict safeguard: If LLM deleted words or shortened significantly, keep original verbatim text
+                        orig_words = len(orig_text.split())
+                        cand_words = len(candidate.split())
+                        if orig_words > 3 and cand_words < int(orig_words * 0.75):
+                            logger.info(f"LLM shortened segment from {orig_words} to {cand_words} words. Preserving verbatim original text.")
+                            cleaned_item["hinglish_text"] = orig_text
+                        else:
+                            cleaned_item["hinglish_text"] = candidate
                     cleaned_item["hinglish_text"] = _sanitize_hinglish_text(cleaned_item["hinglish_text"])
                     cleaned_batch.append(cleaned_item)
                 logger.info(f"Ollama cleaned batch {batch_idx + 1}/{total_batches}")

@@ -48,10 +48,10 @@ export const jobsApi = {
   /**
    * Start the transcription job for an uploaded file.
    */
-  startTranscription: async (filename: string): Promise<TranscribeResponse> => {
-    // The FastAPI backend route is /transcribe?filename=...
+  startTranscription: async (filename: string, language: string = 'hi'): Promise<TranscribeResponse> => {
+    // The FastAPI backend route is /transcribe?filename=...&language=...
     const response = await api.post<TranscribeResponse>(
-      `/transcribe?filename=${encodeURIComponent(filename)}`
+      `/transcribe?filename=${encodeURIComponent(filename)}&language=${encodeURIComponent(language)}`
     );
     return response.data;
   },

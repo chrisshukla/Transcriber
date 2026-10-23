@@ -7,14 +7,14 @@ from app.utils.logger import logger
 class JobRepository:
 
     @staticmethod
-    def create_job(job_id: str, filename: str):
+    def create_job(job_id: str, filename: str, language: str | None = None):
         created_at = datetime.now().isoformat()
         job_doc = {
             "id": job_id,
             "filename": filename,
             "status": JobStatus.UPLOADED.value,
             "progress": 0,
-            "language": None,
+            "language": language,
             "duration": None,
             "created_at": created_at,
             "completed_at": None,
@@ -40,7 +40,7 @@ class JobRepository:
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            job_id, filename, JobStatus.UPLOADED.value, 0, None, None,
+            job_id, filename, JobStatus.UPLOADED.value, 0, language, None,
             created_at, None, None, None, None, None
         ))
         conn.commit()

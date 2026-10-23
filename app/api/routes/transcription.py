@@ -1,3 +1,4 @@
+from typing import Optional
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -10,7 +11,8 @@ jobs = job_manager
 
 @router.post("/transcribe")
 async def transcribe(
-    filename: str
+    filename: str,
+    language: Optional[str] = "hi"
 ):
 
     video_path = Path("uploads") / filename
@@ -21,7 +23,7 @@ async def transcribe(
             detail="File not found."
         )
 
-    job = jobs.create_job(filename)
+    job = jobs.create_job(filename, language=language)
 
     await jobs.enqueue_job(
         str(video_path),
