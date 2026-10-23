@@ -112,22 +112,15 @@ class WhisperService:
         start_time = time.time()
 
         from typing import Any
-        # Optimized Whisper kwargs: sensitive VAD parameters to capture quiet words and speech in silences
-        vad_parameters = {
-            "threshold": 0.2,                   # Sensitive threshold to capture soft, quiet, or trailing speech
-            "min_silence_duration_ms": 1500,     # Pauses under 1.5s are NOT treated as sentence cuts
-            "speech_pad_ms": 800,               # 800ms lead-in/lead-out padding prevents chopping sentence onsets/ends
-            "min_speech_duration_ms": 100,      # Don't discard short 1-word utterances
-        }
-
+        # Build Whisper transcribe arguments dynamically
         kwargs: dict[str, Any] = {
-            "beam_size": max(beam_size, 5),
+            "beam_size": beam_size,
             "vad_filter": True,
-            "vad_parameters": vad_parameters,
-            "no_speech_threshold": 0.85,        # Prevent Whisper from dropping segments with pauses/silences
+            "vad_parameters": dict(min_silence_duration_ms=500, speech_pad_ms=400),
+            "no_speech_threshold": 0.6,
             "word_timestamps": False,
             "condition_on_previous_text": False,
-            "temperature": [0.0, 0.2],
+            "temperature": 0.0,
             "repetition_penalty": 1.1,
         }
 
@@ -138,12 +131,17 @@ class WhisperService:
 
         with WhisperService._transcribe_lock:
             try:
-                # Use self.model.transcribe directly for continuous sliding-window context,
-                # avoiding BatchedInferencePipeline boundary-clipping and dropped speech
-                segments, info = self.model.transcribe(
-                    audio_path,
-                    **kwargs
-                )
+                if self.batched_pipeline is not None:
+                    segments, info = self.batched_pipeline.transcribe(
+                        audio_path,
+                        batch_size=4,
+                        **kwargs
+                    )
+                else:
+                    segments, info = self.model.transcribe(
+                        audio_path,
+                        **kwargs
+                    )
             except Exception as err:
                 logger.error(f"Whisper transcribe failed for {audio_path}: {err}")
                 raise
@@ -155,10 +153,17 @@ class WhisperService:
                 logger.info(f"Auto-detected Urdu ('ur') for {audio_path}. Re-transcribing with language='hi' (Hindi Devanagari)...")
                 kwargs["language"] = "hi"
                 try:
-                    segments, info = self.model.transcribe(
-                        audio_path,
-                        **kwargs
-                    )
+                    if self.batched_pipeline is not None:
+                        segments, info = self.batched_pipeline.transcribe(
+                            audio_path,
+                            batch_size=4,
+                            **kwargs
+                        )
+                    else:
+                        segments, info = self.model.transcribe(
+                            audio_path,
+                            **kwargs
+                        )
                     detected_lang = "hi"
                 except Exception as retry_err:
                     logger.warning(f"Re-transcription with language='hi' failed: {retry_err}")

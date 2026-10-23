@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileAudio, FileVideo, X, Play, Loader2, Languages, Check } from 'lucide-react';
+import { UploadCloud, FileAudio, FileVideo, X, Play, Loader2 } from 'lucide-react';
 import { jobsApi } from '../api/jobs';
 import { ProgressBar } from '../components/ProgressBar';
 import { useToast } from '../components/Toast';
@@ -22,7 +22,6 @@ export const Upload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isStartingTranscription, setIsStartingTranscription] = useState<boolean>(false);
-  const [language, setLanguage] = useState<string>('hi');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -112,9 +111,9 @@ export const Upload: React.FC = () => {
       // Extract UUID prefixed filename from return path (e.g. "uploads/uuid_name.mp3" or "uploads\\uuid_name.mp3")
       const filenameInUploads = uploadRes.path.replace(/^.*[\\/]/, '');
 
-      // 2. Start Transcription with chosen language
+      // 2. Start Transcription
       setIsStartingTranscription(true);
-      const transcribeRes = await jobsApi.startTranscription(filenameInUploads, language);
+      const transcribeRes = await jobsApi.startTranscription(filenameInUploads);
 
       toast.success('Transcription job queued!');
       
@@ -199,62 +198,6 @@ export const Upload: React.FC = () => {
                 <X className="w-4 h-4" />
               </button>
             )}
-          </div>
-        )}
-
-        {/* Language & Transcription Mode Selection */}
-        {file && !isUploading && (
-          <div className="flex flex-col gap-2.5">
-            <label className="text-xs font-bold text-foreground flex items-center gap-2">
-              <Languages className="w-4 h-4 text-indigo-400" />
-              Transcription Mode (Word-for-Word)
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {[
-                {
-                  id: 'hi',
-                  label: 'Hinglish (Hindi + Eng)',
-                  desc: 'Word-for-word, no translation',
-                  badge: 'Recommended',
-                },
-                {
-                  id: 'auto',
-                  label: 'Auto-Detect',
-                  desc: 'Auto-detect per segment',
-                  badge: null,
-                },
-                {
-                  id: 'en',
-                  label: 'English Only',
-                  desc: 'Pure English speech',
-                  badge: null,
-                },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setLanguage(opt.id)}
-                  className={`p-3 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
-                    language === opt.id
-                      ? 'border-indigo-500 bg-indigo-500/15 shadow-sm ring-1 ring-indigo-500/50'
-                      : 'border-border/60 hover:border-border bg-card/40 hover:bg-muted/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">{opt.label}</span>
-                    {language === opt.id && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground mt-1 font-medium leading-tight">
-                    {opt.desc}
-                  </span>
-                  {opt.badge && (
-                    <span className="mt-2 inline-block text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 w-fit">
-                      {opt.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 

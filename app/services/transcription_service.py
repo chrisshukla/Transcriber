@@ -106,25 +106,7 @@ class TranscriptionService:
 
             logger.info(f"Transcribing {total_chunks} chunks sequentially with cross-chunk context priming...")
 
-            requested_lang = getattr(job, "language", None)
-            if isinstance(job, dict):
-                requested_lang = job.get("language")
-
-            # Default to 'hi' (Hinglish / Hindi verbatim) so Hindi is never translated into English or dropped
-            if requested_lang and requested_lang.lower() in ("en", "english"):
-                configured_target_lang = "en"
-            elif requested_lang and requested_lang.lower() in ("auto", "detect"):
-                configured_target_lang = None
-            else:
-                configured_target_lang = "hi"
-
-            hinglish_seed_prompt = (
-                "Transcribe verbatim word for word. Do not translate Hindi words to English. "
-                "Hinglish speech: humare pass videos hai, confidence is an eternal lifetime ability to remain composed, "
-                "sales call, team, stage, target date."
-            )
-
-            primary_language = configured_target_lang
+            primary_language = None
 
             for idx, chunk in enumerate(chunks):
                 if self.jobs.is_cancelled(job_id):
@@ -140,22 +122,13 @@ class TranscriptionService:
 
                 ch_offset = float(chunk.get("offset", 0.0))
 
-                # Determine chunk language without forcing English onto subsequent chunks
-                if configured_target_lang:
-                    chunk_target_lang = configured_target_lang
-                else:
-                    chunk_target_lang = None
-
-                # Construct context prompt
-                if previous_tail_prompt:
-                    chunk_prompt = f"{hinglish_seed_prompt} {previous_tail_prompt[-250:]}"
-                else:
-                    chunk_prompt = hinglish_seed_prompt
+                # Pass primary_language to subsequent chunks once detected to prevent language flip-flopping mid-transcription
+                target_lang = primary_language if (primary_language and primary_language != "ur") else None
 
                 chunk_result = self.whisper.transcribe(
                     ch_path_str,
-                    language=chunk_target_lang,
-                    initial_prompt=chunk_prompt
+                    language=target_lang,
+                    initial_prompt=previous_tail_prompt
                 )
 
                 chunk_lang = str(chunk_result.get("language", "hi"))
